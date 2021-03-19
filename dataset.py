@@ -480,12 +480,13 @@ class Lung_Val_Dataset(Dataset):
         im = transforms.functional.to_tensor(np.array(im)).float()
         return im, infected_label, covid_label
 
-dataset_dir = '../dataset'
+dataset_dir = './dataset'
 ld_train = Lung_Train_Dataset(dataset_dir, transform=transforms.Compose([
   transforms.Resize((100,100)),
 ]))
 
 ld_train.show_img('train', 'covid', 2)
+print("Done")
 
 # trainloader = DataLoader(ld_train, batch_size = 4, shuffle = True)
 
