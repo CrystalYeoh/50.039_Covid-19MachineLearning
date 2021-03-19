@@ -18,21 +18,19 @@ class PreliminaryModel(nn.Module):
         # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
         self.conv1 = nn.Conv2d(1, 4, 3, 1)
         self.conv2 = nn.Conv2d(4, 4, 3, 1)
-        self.relu_1= nn.ReLU()
-        self.relu_2 = nn.ReLU()
         self.maxpool_1 = nn.MaxPool2d(2,2)
         self.maxpool_2 = nn.MaxPool2d(2,2)
-        self.fc1 = nn.Linear(2116, 2)
+        self.fc1 = nn.Linear(5184, 2)
 
     def forward(self, x):
         x = self.conv1(x)
-        x = self.relu_1(x)
+        x = F.relu(x)
         x = self.maxpool_1(x)
         x = self.conv2(x)
-        x = self.relu_2(x)
+        x = F.relu(x)
         x = self.maxpool_2(x)
-        x = x.view((x.size(0),-1))
-        # x = torch.flatten(x, 1)
+        # x = x.view((x.size(0),-1))
+        x = torch.flatten(x, 1)
         x = self.fc1(x)
         output = F.log_softmax(x, dim = 1)
         return output
@@ -54,28 +52,29 @@ def train(trainloader, epochs):
 
     for e in range(epochs):
         model.train()
-        for batch_idx, (images_data, target_infected_labels, target_covid_labels) in enumerate((DataLoader(trainloader, batch_size = 4, shuffle = True))):
-             if torch.cuda.is_available():
+        for batch_idx, (images_data, target_infected_labels, target_covid_labels) in enumerate(DataLoader(trainloader, batch_size = 4, shuffle = True)):
+            if torch.cuda.is_available():
                 images_data = images_data.cuda()
                 target_infected_labels = target_infected_labels.cuda()
 
-                optimizer.zero_grad()
-                output = model.forward(images_data)
-                output = output.long()
-                print(output)
-                loss = criterion(output, target_infected_labels)
-                loss.backward()
-                optimizer.step()
-                running_loss += loss.item()
+            optimizer.zero_grad()
+            output = model.forward(images_data)
+            # target_infected_labels = torch.tensor(target_infected_labels, dtype = torch.long)
+            for i in range(len(target_infected_labels)):
+                target_infected_labels[i] = torch.argmax(target_infected_labels[i])
+            print(target_infected_labels)
+            loss = criterion(output, target_infected_labels)
+
+            loss.backward()
+            optimizer.step()
+            running_loss += loss.item()
 
     print("Training loss:",running_loss/len(trainloader))
 
 
 dataset_dir = './dataset'
 
-ld_train = Lung_Train_Dataset(dataset_dir, transform=transforms.Compose([
-    transforms.CenterCrop(100)
-]))
+ld_train = Lung_Train_Dataset(dataset_dir)
 ld_train.show_img('train', 'covid', 2)
 from model import train
 train(ld_train,epochs = 1)
