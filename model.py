@@ -52,17 +52,15 @@ def train(trainloader, epochs):
 
     for e in range(epochs):
         model.train()
-        for batch_idx, (images_data, target_infected_labels, target_covid_labels) in enumerate(DataLoader(trainloader, batch_size = 4, shuffle = True)):
+        for batch_idx, (images_data, target_infected_labels, target_covid_labels) in enumerate(trainloader):
+            
             if torch.cuda.is_available():
                 images_data = images_data.cuda()
                 target_infected_labels = target_infected_labels.cuda()
 
             optimizer.zero_grad()
             output = model.forward(images_data)
-            # target_infected_labels = torch.tensor(target_infected_labels, dtype = torch.long)
-            for i in range(len(target_infected_labels)):
-                target_infected_labels[i] = torch.argmax(target_infected_labels[i])
-            print(target_infected_labels)
+
             loss = criterion(output, target_infected_labels)
 
             loss.backward()
@@ -75,6 +73,6 @@ def train(trainloader, epochs):
 dataset_dir = './dataset'
 
 ld_train = Lung_Train_Dataset(dataset_dir)
-ld_train.show_img('train', 'covid', 2)
-from model import train
-train(ld_train,epochs = 1)
+trainloader = DataLoader(ld_train, batch_size = 4, shuffle = True)
+
+train(trainloader, epochs = 1)

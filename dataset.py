@@ -12,8 +12,6 @@ import torch.optim as optim
 import torch.nn.functional as F
 from torchvision import transforms
 
-dataset_dir = './dataset'
-
 class Lung_Train_Dataset(Dataset):
     
     def __init__(self, img_dir, transform=None):
@@ -26,7 +24,7 @@ class Lung_Train_Dataset(Dataset):
         # All images are of size 150 x 150
         self.img_size = (150, 150)
         
-         # There will be two types of classifications
+        # There will be two types of classifications
         # infected classification: normal and infected
         # covid classification (only done on classified infected): non-covid and covid
         # self.classes = {0: 'normal', 1: 'infected'}
@@ -95,9 +93,6 @@ class Lung_Train_Dataset(Dataset):
         assert index_val >= 0 and index_val <= max_val, err_msg
         
         # Open file as before
-        # if class_val == 'normal':
-        #     path_to_file = '{}/{}.jpg'.format(self.dataset_paths['{}_{}'.format(group_val, class_val)], index_val)
-        # elif class_val == 'non-covid' or class_val == 'covid':
         path_to_file = '{}/{}.jpg'.format(self.dataset_paths['{}_{}'.format(group_val, class_val)], index_val)
         with open(path_to_file, 'rb') as f:
             img = Image.open(f)
@@ -150,18 +145,18 @@ class Lung_Train_Dataset(Dataset):
         max_num_noncovid = int(max_num_vals[1])
         if index < max_num_normal:
             class_val = 'normal'
-            infected_label = torch.Tensor([1, 0])
-            covid_label = torch.Tensor([1, 0])
+            infected_label = 0
+            covid_label = 0
         elif index < max_num_noncovid+max_num_normal:
             class_val = 'non-covid'
             index = index - max_num_normal
-            infected_label = torch.Tensor([0, 1])
-            covid_label = torch.Tensor([1, 0])
+            infected_label = 1
+            covid_label = 0
         else:
             class_val = 'covid'
             index = index - max_num_noncovid - max_num_normal
-            infected_label = torch.Tensor([0, 1])
-            covid_label = torch.Tensor([0, 1])
+            infected_label = 1
+            covid_label = 1
 
         im = self.open_img(self.groups, class_val, index)
         
@@ -180,7 +175,7 @@ class Lung_Test_Dataset(Dataset):
         # All images are of size 150 x 150
         self.img_size = (150, 150)
         
-         # There will be two types of classifications
+        # There will be two types of classifications
         # infected classification: normal and infected
         # covid classification (only done on classified infected): non-covid and covid
         # self.classes = {0: 'normal', 1: 'infected'}
@@ -251,9 +246,6 @@ class Lung_Test_Dataset(Dataset):
         assert index_val >= 0 and index_val <= max_val, err_msg
         
         # Open file as before
-        # if class_val == 'normal':
-        #     path_to_file = '{}/{}.jpg'.format(self.dataset_paths['{}_{}'.format(group_val, class_val)], index_val)
-        # elif class_val == 'non-covid' or class_val == 'covid':
         path_to_file = '{}/{}.jpg'.format(self.dataset_paths['{}_{}'.format(group_val, class_val)], index_val)
         with open(path_to_file, 'rb') as f:
             img = Image.open(f)
@@ -306,18 +298,18 @@ class Lung_Test_Dataset(Dataset):
         max_num_noncovid = int(max_num_vals[1])
         if index < max_num_normal:
             class_val = 'normal'
-            infected_label = torch.Tensor([1, 0])
-            covid_label = torch.Tensor([1, 0])
+            infected_label = 0
+            covid_label = 0
         elif index < max_num_noncovid+max_num_normal:
             class_val = 'non-covid'
             index = index - max_num_normal
-            infected_label = torch.Tensor([0, 1])
-            covid_label = torch.Tensor([1, 0])
+            infected_label = 1
+            covid_label = 0
         else:
             class_val = 'covid'
             index = index - max_num_noncovid - max_num_normal
-            infected_label = torch.Tensor([0, 1])
-            covid_label = torch.Tensor([0, 1])
+            infected_label = 1
+            covid_label = 1
         
         im = self.open_img(self.groups, class_val, index)
         # plt.imshow(im)
@@ -407,9 +399,6 @@ class Lung_Val_Dataset(Dataset):
         assert index_val >= 0 and index_val <= max_val, err_msg
         
         # Open file as before
-        # if class_val == 'normal':
-        #     path_to_file = '{}/{}.jpg'.format(self.dataset_paths['{}_{}'.format(group_val, class_val)], index_val)
-        # elif class_val == 'non-covid' or class_val == 'covid':
         path_to_file = '{}/{}.jpg'.format(self.dataset_paths['{}_{}'.format(group_val, class_val)], index_val)
         with open(path_to_file, 'rb') as f:
             img = Image.open(f)
@@ -462,35 +451,39 @@ class Lung_Val_Dataset(Dataset):
         max_num_noncovid = int(max_num_vals[1])
         if index < max_num_normal:
             class_val = 'normal'
-            infected_label = torch.Tensor([1, 0])
-            covid_label = torch.Tensor([1, 0])
+            infected_label = 0
+            covid_label = 0
         elif index < max_num_noncovid+max_num_normal:
             class_val = 'non-covid'
             index = index - max_num_normal
-            infected_label = torch.Tensor([0, 1])
-            covid_label = torch.Tensor([1, 0])
+            infected_label = 1
+            covid_label = 0
         else:
             class_val = 'covid'
             index = index - max_num_noncovid - max_num_normal
-            infected_label = torch.Tensor([0, 1])
-            covid_label = torch.Tensor([0, 1])
+            infected_label = 1
+            covid_label = 1
         
         im = self.open_img(self.groups, class_val, index)
         # plt.imshow(im)
         im = transforms.functional.to_tensor(np.array(im)).float()
+
         return im, infected_label, covid_label
 
-dataset_dir = './dataset'
-ld_train = Lung_Train_Dataset(dataset_dir, transform=transforms.Compose([
-  transforms.Resize((100,100)),
-]))
+# dataset_dir = '../dataset'
+# ld_train = Lung_Train_Dataset(dataset_dir, transform=transforms.Compose([
+#   transforms.Resize((100,100)),
+# ]))
 
-ld_train.show_img('train', 'covid', 2)
-print("Done")
+# trainloader = DataLoader(ld_train, batch_size = 4, shuffle = False)
+# images_data, target_infected_labels, target_covid_labels = ld_train[0]
+# print(images_data.shape)
+# print(target_infected_labels)
+# print(target_covid_labels)
 
-# trainloader = DataLoader(ld_train, batch_size = 4, shuffle = True)
-
-# for batch_idx, (images_data, target_infected_labels, target_covid_labels) in enumerate(trainloader):
+# for batch_idx, data in enumerate(trainloader):
+#   images_data, target_infected_labels, target_covid_labels = data
+  
 #   print(f'Batch {batch_idx}')
 #   print(images_data.shape)
 #   print(target_infected_labels, target_covid_labels)
