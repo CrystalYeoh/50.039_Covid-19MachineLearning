@@ -17,8 +17,8 @@ class PreliminaryModel(nn.Module):
         super(PreliminaryModel, self).__init__()
         # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
         self.conv1 = nn.Conv2d(1, 4, 3, 1)
-        self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_1 = nn.MaxPool2d(2,2)
+        self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_2 = nn.MaxPool2d(2,2)
         self.fc1 = nn.Linear(5184, 2)
 
@@ -39,7 +39,7 @@ class PreliminaryModel(nn.Module):
 #todo set lr
 def train(trainloader, epochs):
     model = PreliminaryModel()
-    optimizer = optim.Adam(model.parameters(),lr=0.01)
+    optimizer = optim.Adam(model.parameters(),lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
     if torch.cuda.is_available():
@@ -56,7 +56,7 @@ def train(trainloader, epochs):
             
             if torch.cuda.is_available():
                 images_data = images_data.cuda()
-                target_infected_labels = target_infected_labels.cuda()
+                target_infected_labels = target_infected_labels.to(device=torch.device('cuda'), dtype=torch.long)
 
             optimizer.zero_grad()
             output = model.forward(images_data)
@@ -67,12 +67,13 @@ def train(trainloader, epochs):
             optimizer.step()
             running_loss += loss.item()
 
-    print("Training loss:",running_loss/len(trainloader))
+        print(f"Epochs {e+1}/{epochs} | Training loss:",running_loss/len(trainloader))
+        running_loss = 0
 
 
 dataset_dir = './dataset'
 
 ld_train = Lung_Train_Dataset(dataset_dir)
-trainloader = DataLoader(ld_train, batch_size = 4, shuffle = True)
+trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
 
-train(trainloader, epochs = 1)
+train(trainloader, epochs = 10)
