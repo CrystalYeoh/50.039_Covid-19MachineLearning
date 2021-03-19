@@ -1,11 +1,14 @@
 import numpy as np
 import time
+from dataset import Lung_Train_Dataset
 
 import torch
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from torchvision import models
+from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader
 
 
 
@@ -19,7 +22,7 @@ class PreliminaryModel(nn.Module):
         self.relu_2 = nn.ReLU()
         self.maxpool_1 = nn.MaxPool2d(2,2)
         self.maxpool_2 = nn.MaxPool2d(2,2)
-        self.fc1 = nn.Linear(87616, 2)
+        self.fc1 = nn.Linear(2116, 2)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -36,15 +39,14 @@ class PreliminaryModel(nn.Module):
 
     
 #todo set lr
-def train(trainloader, validationloader, epochs):
+def train(trainloader, epochs):
     model = PreliminaryModel()
     optimizer = optim.Adam(model.parameters(),lr=0.01)
-    criterion = torch.nn.CrossEntropyLoss()
+    criterion = nn.CrossEntropyLoss()
 
     if torch.cuda.is_available():
         model = model.cuda()
         criterion = criterion.cuda()
-        
 
     print(model)
 
@@ -52,14 +54,16 @@ def train(trainloader, validationloader, epochs):
 
     for e in range(epochs):
         model.train()
-        for images, label in trainloader:
+        for batch_idx, (images_data, target_infected_labels, target_covid_labels) in enumerate((DataLoader(trainloader, batch_size = 4, shuffle = True))):
              if torch.cuda.is_available():
-                images = images.cuda()
-                label = label.cuda()
+                images_data = images_data.cuda()
+                target_infected_labels = target_infected_labels.cuda()
 
                 optimizer.zero_grad()
-                output = model.forward(images)
-                loss = criterion(output, label)
+                output = model.forward(images_data)
+                output = output.long()
+                print(output)
+                loss = criterion(output, target_infected_labels)
                 loss.backward()
                 optimizer.step()
                 running_loss += loss.item()
@@ -67,8 +71,11 @@ def train(trainloader, validationloader, epochs):
     print("Training loss:",running_loss/len(trainloader))
 
 
+dataset_dir = './dataset'
 
-
-    
-
-
+ld_train = Lung_Train_Dataset(dataset_dir, transform=transforms.Compose([
+    transforms.CenterCrop(100)
+]))
+ld_train.show_img('train', 'covid', 2)
+from model import train
+train(ld_train,epochs = 1)
