@@ -391,11 +391,13 @@ def test(model_infect, model_covid, validloader, criterion, threshold=0.5):
     
     # return test_loss, fbeta
 
-def visualise_val_predictions(images, target_i, target_c, pred_i, pred_c, accuracy):
+def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accuracy):
     plt.figure(figsize = (10, 10))
     plt.suptitle('Validation set pictures, with predicted and ground truth labels.\nAccuracy: {:.3f}'.format(accuracy))
 
-    images = images.cpu()
+    images = []
+    for i in range(len(dataset)):
+        images.append(dataset[i][0])
     
     for i in range(len(target_i)):
         plt.subplot(5, 5, i+1)
@@ -553,25 +555,26 @@ img_transforms = transforms.Compose([
     transforms.ToPILImage(),
 ])
 
-ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
-trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
-ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
-testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
+# ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
+# trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+# ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
+# testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
 
-ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
-trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
-ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
-testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
+# ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
+# trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+# ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
+# testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
 
-model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=20, lr=0.001, weight_decay=1e-4)
+# model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=20, lr=0.001, weight_decay=1e-4)
 
-# model_infect = load("OneModel.pt")
-# model_covid = load("PreliminaryModel.pt")
+model_infect = load("infected_OneModel.pt")
+model_covid = load("covid_PreliminaryModel.pt")
 
 ld_valid = Lung_Val_Dataset(dataset_dir,covid=None, transform=img_transforms)
 validloader = DataLoader(ld_valid,batch_size=64,shuffle=False)
 images, target_i, target_c, pred_i, pred_c, acc = test(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
-visualise_val_predictions(images, target_i, target_c, pred_i, pred_c, acc)
+ld_valid_display = Lung_Val_Dataset(dataset_dir, covid=None)
+visualise_val_predictions(ld_valid_display, target_i, target_c, pred_i, pred_c, acc)
 
 # ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
 # testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
