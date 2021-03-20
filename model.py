@@ -35,12 +35,29 @@ class PreliminaryModel(nn.Module):
         output = F.log_softmax(x, dim = 1)
         return output
 
+
+def train(infect_trainloader,infect_testloader,covid_trainloader, covid_testloader, epochs):
+    model_infect = PreliminaryModel()
+    optimizer = optim.Adam(model_infect.parameters(),lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+
+    train_model(model_infect,optimizer, criterion, infect_trainloader, infect_testloader, epochs)
+
+    for params in model_infect.parameters():
+        params.require_grad = False
+
+    model_covid = PreliminaryModel()
+    optimizer = optim.Adam(model_covid.parameters(),lr=0.001)
+    criterion = nn.CrossEntropyLoss()
+
+    train_model(model_covid,optimizer, criterion, covid_trainloader, covid_testloader, epochs, covid = True)
+
+
+
+
     
 #todo set lr
-def train(trainloader,testloader, epochs):
-    model = PreliminaryModel()
-    optimizer = optim.Adam(model.parameters(),lr=0.001)
-    criterion = nn.CrossEntropyLoss()
+def train_model(model, optimizer, criterion, trainloader,testloader, epochs, covid = None):
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -51,25 +68,30 @@ def train(trainloader,testloader, epochs):
     training_loss = 0
     training_accuracy = 0
 
+
     for e in range(epochs):
         model.train()
         for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(trainloader):
+            if covid:
+                target = target_covid_labels
+            else:
+                target = target_infected_labels
             
             if torch.cuda.is_available():
                 images = images.cuda()
-                target_infected_labels = target_infected_labels.cuda()
+                target = target.cuda()
 
             optimizer.zero_grad()
             output = model.forward(images)
 
-            loss = criterion(output, target_infected_labels)
+            loss = criterion(output, target)
 
             loss.backward()
             optimizer.step()
             training_loss += loss.item()
 
             ps = torch.exp(output)
-            equality = (target_infected_labels.data == ps.max(dim=1)[1])
+            equality = (target.data == ps.max(dim=1)[1])
             training_accuracy += equality.type(torch.FloatTensor).mean()
             
         model.eval()
@@ -90,30 +112,23 @@ def validation(model, testloader, criterion, covid = None):
     test_loss = 0
     accuracy = 0
     
-    if covid:
-        for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
-            if torch.cuda.is_available():
-                    images = images.cuda()
-                    target_infected_labels = target_covid_labels.cuda()
-                    
-            output = model.forward(images)
-            test_loss += criterion(output, target_covid_labels).item()
-            
-            ps = torch.exp(output)
-            equality = (target_covid_labels.data == ps.max(dim=1)[1])
-            accuracy += equality.type(torch.FloatTensor).mean()
-    else:
-        for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
-            if torch.cuda.is_available():
-                    images = images.cuda()
-                    target_infected_labels = target_infected_labels.cuda()
-                    
-            output = model.forward(images)
-            test_loss += criterion(output, target_infected_labels).item()
-            
-            ps = torch.exp(output)
-            equality = (target_infected_labels.data == ps.max(dim=1)[1])
-            accuracy += equality.type(torch.FloatTensor).mean()
+    for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
+        if covid:
+            target = target_covid_labels
+        else:
+            target = target_infected_labels
+
+        if torch.cuda.is_available():
+                images = images.cuda()
+                target = target.cuda()
+                
+        output = model.forward(images)
+        test_loss += criterion(output, target).item()
+        
+        ps = torch.exp(output)
+        equality = (target.data == ps.max(dim=1)[1])
+        accuracy += equality.type(torch.FloatTensor).mean()
+    
 
     return test_loss, accuracy
 
@@ -123,8 +138,12 @@ def validation(model, testloader, criterion, covid = None):
 dataset_dir = './dataset'
 
 ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
-trainloader = DataLoader(ld_train, batch_size = 64, shuffle = False)
+trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-testloader = DataLoader(ld_test, batch_size = 64, shuffle = False)
+testloader = DataLoader(ld_test, batch_size = 64, shuffle = True)
+ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
+trainloader_c = DataLoader(ld_train, batch_size = 64, shuffle = True)
+ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
+testloader_c = DataLoader(ld_test, batch_size = 64, shuffle = True)
 
-train(trainloader, testloader,  epochs = 10)
+train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 10)
