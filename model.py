@@ -110,7 +110,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     criterion = nn.CrossEntropyLoss()
     
     #Train the model
-    train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
+    # train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
 
     #Freeze the parameters in the infection model to train the covid model
     for params in model_infect.parameters():
@@ -310,8 +310,8 @@ trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
 testloader = DataLoader(ld_test, batch_size = 64, shuffle = True)
 ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
-trainloader_c = DataLoader(ld_train, batch_size = 64, shuffle = True)
+trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle = True)
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
-testloader_c = DataLoader(ld_test, batch_size = 64, shuffle = True)
+testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle = True)
 
 train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 10)
