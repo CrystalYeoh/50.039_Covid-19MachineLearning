@@ -1,13 +1,15 @@
 import numpy as np
 import time
 from dataset import Lung_Train_Dataset, Lung_Test_Dataset
+from utils import make_balanced_weights
 
 import torch
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from torchvision import models
-from torch.utils.data import Dataset, DataLoader
+# from torchvision import transforms
+from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
 import matplotlib.pyplot as plt
 
@@ -119,7 +121,6 @@ class HighPassModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
-
 def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs):
 
     #We first train on infected
@@ -142,11 +143,10 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
 
     #Create model, optimizer and criterion
     model_covid = PreliminaryModel()
-    optimizer = optim.Adam(model_covid.parameters(),lr=0.001)
-    criterion = nn.CrossEntropyLoss()
+    optimizer2 = optim.Adam(model_covid.parameters(),lr=0.001)
+    criterion2 = nn.CrossEntropyLoss()
 
-    #Train the model
-    train_model(model_covid, optimizer, criterion, covid_trainloader, covid_testloader, epochs, covid = True)
+    train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True)
 
 
 # determine default value of beta
@@ -326,16 +326,23 @@ def visualisation(trainingloss, trainingacc, testloss, testacc,covid):
 
 dataset_dir = './dataset'
 
-ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
-trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
+# ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
+# trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
+# ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
+# testloader = DataLoader(ld_test, batch_size = 64, shuffle = True)
+# ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
+# trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle = True)
+# ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
+# testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle = True)
 
+ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
+trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-testloader = DataLoader(ld_test, batch_size = 64, shuffle = True)
+testloader = DataLoader(ld_test, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test), len(ld_test)))
 
 ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
-trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle = True)
-
+trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
-testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle = True)
+testloader_c = DataLoader(ld_test_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test_c), len(ld_test_c)))
 
 train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 5)
