@@ -34,7 +34,6 @@ class PreliminaryModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
-
 def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs):
     model_infect = PreliminaryModel()
     optimizer = optim.Adam(model_infect.parameters(),lr=0.001)
@@ -42,14 +41,14 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
 
     train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
 
-    for params in model_infect.parameters():
-        params.require_grad = False
+    # for params in model_infect.parameters():
+    #     params.require_grad = False
 
     model_covid = PreliminaryModel()
-    optimizer = optim.Adam(model_covid.parameters(),lr=0.001)
-    criterion = nn.CrossEntropyLoss()
+    optimizer2 = optim.Adam(model_covid.parameters(),lr=0.001)
+    criterion2 = nn.CrossEntropyLoss()
 
-    train_model(model_covid, optimizer, criterion, covid_trainloader, covid_testloader, epochs, covid = True)
+    train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True)
 
 
 # determine default value of beta
@@ -118,7 +117,7 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
         model.eval()
 
         with torch.no_grad():
-            test_loss, test_fbeta = validation(model, testloader, criterion, covid, beta=beta)
+            test_loss, test_fbeta = validation(model, testloader, criterion, covid=covid, beta=beta)
             print("Epoch: {}/{} - ".format(e+1, epochs),
             "Training Loss: {:.3f} - ".format(training_loss/len(trainloader)),
             "Training Fbeta-score: {:.3f} - ".format(train_fbeta),
@@ -176,18 +175,18 @@ dataset_dir = './dataset'
 # ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
 # testloader = DataLoader(ld_test, batch_size = 64, shuffle = True)
 # ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
-# trainloader_c = DataLoader(ld_train, batch_size = 64, shuffle = True)
+# trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle = True)
 # ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
-# testloader_c = DataLoader(ld_test, batch_size = 64, shuffle = True)
+# testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle = True)
 
-ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
-trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
-ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-testloader = DataLoader(ld_test, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test), len(ld_test)))
+# ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
+# trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+# ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
+# testloader = DataLoader(ld_test, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test), len(ld_test)))
 
-ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
-trainloader_c = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
-ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
-testloader_c = DataLoader(ld_test, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test_c), len(ld_test_c)))
+# ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
+# trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+# ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
+# testloader_c = DataLoader(ld_test_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test_c), len(ld_test_c)))
 
 train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 10)
