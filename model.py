@@ -36,9 +36,11 @@ class PreliminaryModel(nn.Module):
         return output
 
     
-#todo set lr
-def train(trainloader,testloader, epochs):
+# determine default value of beta
+# default is 2 to favour recall to minimize false negatives
+def train(trainloader,testloader, epochs, covid=None, threshold=0.5, beta=2, eps=1e-9):
     model = PreliminaryModel()
+
     optimizer = optim.Adam(model.parameters(),lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
@@ -49,82 +51,112 @@ def train(trainloader,testloader, epochs):
     print(model)
 
     training_loss = 0
-    training_accuracy = 0
+    
+    beta2 = beta**2
+    true_positives = 0
+    predicted_positives = 0
+    target_positives = 0
 
     for e in range(epochs):
         model.train()
         for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(trainloader):
-            
+            if covid:
+                target_labels = target_covid_labels
+            else:
+                target_labels = target_infected_labels
             if torch.cuda.is_available():
-                images = images.cuda()
-                target_infected_labels = target_infected_labels.cuda()
+                    images = images.cuda()
+                    target_labels = target_labels.cuda()
 
             optimizer.zero_grad()
             output = model.forward(images)
 
-            loss = criterion(output, target_infected_labels)
+            loss = criterion(output, target_labels)
 
             loss.backward()
             optimizer.step()
             training_loss += loss.item()
 
-            ps = torch.exp(output)
-            equality = (target_infected_labels.data == ps.max(dim=1)[1])
-            training_accuracy += equality.type(torch.FloatTensor).mean()
+            # ps = torch.exp(output)
+            # equality = (target_infected_labels.data == ps.max(dim=1)[1])
+            # training_accuracy += equality.type(torch.FloatTensor).mean()
+
+            output = torch.exp(output)
+            predicted_labels = torch.ge(output[:,1], threshold)
+
+            true_positives += (predicted_labels * target_labels).sum()
+            predicted_positives += predicted_labels.sum()
+            target_positives += target_labels.sum()
+    
+        # precision = TruePositive / (TruePositive + FalsePositive)
+        precision = true_positives.div(predicted_positives.add(eps))
+        # recall = TruePositive / (TruePositive + FalseNegative)
+        recall = true_positives.div(target_positives.add(eps))
+        
+        train_fbeta = torch.mean((precision*recall).
+            mul(1 + beta2)
+            .div(precision.mul(beta2) + recall + eps)
+        )
             
         model.eval()
 
         with torch.no_grad():
-            test_loss, accuracy = validation(model, testloader, criterion, covid)
+            test_loss, test_fbeta = validation(model, testloader, criterion, covid, beta=beta)
             print("Epoch: {}/{} - ".format(e+1, epochs),
             "Training Loss: {:.3f} - ".format(training_loss/len(trainloader)),
-            "Training Accuracy: {:.3f} - ".format(training_accuracy/len(trainloader)),
+            "Training Fbeta-score: {:.3f} - ".format(train_fbeta),
             "Test Loss: {:.3f} - ".format(test_loss/len(testloader)),
-            "Test Accuracy: {:.3f}".format(accuracy/len(testloader)))
+            "Test Fbeta-score: {:.3f}".format(test_fbeta))
         
         model.train()
         training_loss = 0
         training_accuracy = 0
 
-def validation(model, testloader, criterion, covid = None):
+def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1, eps=1e-9):
+    beta2 = beta**2
     test_loss = 0
-    accuracy = 0
+    true_positives = 0
+    predicted_positives = 0
+    target_positives = 0
+
+    for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
+        if covid:
+            target_labels = target_covid_labels
+        else:
+            target_labels = target_infected_labels
+        if torch.cuda.is_available():
+                images = images.cuda()
+                target_labels = target_labels.cuda()
+                
+        output = model.forward(images)
+        test_loss += criterion(output, target_labels).item()
+        
+        output = torch.exp(output)
+        predicted_labels = torch.ge(output[:,1], threshold)
+
+        true_positives += (predicted_labels * target_labels).sum()
+        predicted_positives += predicted_labels.sum()
+        target_positives += target_labels.sum()
     
-    if covid:
-        for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
-            if torch.cuda.is_available():
-                    images = images.cuda()
-                    target_infected_labels = target_covid_labels.cuda()
-                    
-            output = model.forward(images)
-            test_loss += criterion(output, target_covid_labels).item()
-            
-            ps = torch.exp(output)
-            equality = (target_covid_labels.data == ps.max(dim=1)[1])
-            accuracy += equality.type(torch.FloatTensor).mean()
-    else:
-        for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
-            if torch.cuda.is_available():
-                    images = images.cuda()
-                    target_infected_labels = target_infected_labels.cuda()
-                    
-            output = model.forward(images)
-            test_loss += criterion(output, target_infected_labels).item()
-            
-            ps = torch.exp(output)
-            equality = (target_infected_labels.data == ps.max(dim=1)[1])
-            accuracy += equality.type(torch.FloatTensor).mean()
-
-    return test_loss, accuracy
-
-
+    # precision = TruePositive / (TruePositive + FalsePositive)
+    precision = true_positives.div(predicted_positives.add(eps))
+    # recall = TruePositive / (TruePositive + FalseNegative)
+    recall = true_positives.div(target_positives.add(eps))
+    
+    fbeta = torch.mean((precision*recall).
+        mul(1 + beta2)
+        .div(precision.mul(beta2) + recall + eps)
+    )
+    
+    return test_loss, fbeta
 
 
 dataset_dir = './dataset'
 
 ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
-trainloader = DataLoader(ld_train, batch_size = 64, shuffle = False)
+trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
+
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-testloader = DataLoader(ld_test, batch_size = 64, shuffle = False)
+testloader = DataLoader(ld_test, batch_size = 64, shuffle = True)
 
 train(trainloader, testloader,  epochs = 10)
