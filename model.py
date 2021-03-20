@@ -29,11 +29,69 @@ class PreliminaryModel(nn.Module):
         x = self.conv2(x)
         x = F.relu(x)
         x = self.maxpool_2(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = x.view((x.size(0),-1))
+        # output = F.log_softmax(x, dim = 1)
+        return x
+
+class LowPassModel(nn.Module):
+    def __init__(self):
+        super(LowPassModel, self).__init__()
+        # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
+        self.low = nn.Conv2d(1, 1, 3, 1, bias=False)
+        kernel_lowpass = (torch.ones(3,3)*(1/9)).expand(self.low.weight.size())
+        self.low.weight = nn.Parameter(kernel_lowpass,requires_grad= False)
+        self.conv1 = nn.Conv2d(1, 4, 3, 1)
+        self.maxpool_1 = nn.MaxPool2d(2,2)
+        self.conv2 = nn.Conv2d(4, 4, 3, 1)
+        self.maxpool_2 = nn.MaxPool2d(2,2)
+        self.fc1 = nn.Linear(4900, 2)
+
+    def forward(self, x):
+        x = self.low(x)
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.maxpool_1(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = self.maxpool_2(x)
         # x = x.view((x.size(0),-1))
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        output = F.log_softmax(x, dim = 1)
-        return output
+        x = x.view((x.size(0),-1))
+        # output = F.log_softmax(x, dim = 1)
+        return x
+
+class HighPassModel(nn.Module):
+    def __init__(self):
+        super(HighPassModel, self).__init__()
+        # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
+        self.high = nn.Conv2d(1, 1, 3, 1, bias=False)
+        kernel_highpass = (torch.ones(3,3)*(-1/9))
+        kernel_highpass[1,1] = 8/9
+        kernel_highpass = kernel_highpass.expand(self.high.weight.size())
+        self.high.weight = nn.Parameter(kernel_highpass,requires_grad= False)
+        self.conv1 = nn.Conv2d(1, 4, 3, 1)
+        self.maxpool_1 = nn.MaxPool2d(2,2)
+        self.conv2 = nn.Conv2d(4, 4, 3, 1)
+        self.maxpool_2 = nn.MaxPool2d(2,2)
+        self.fc1 = nn.Linear(4900, 2)
+
+    def forward(self, x):
+        x = self.high(x)
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.maxpool_1(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = self.maxpool_2(x)
+        # x = x.view((x.size(0),-1))
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = x.view((x.size(0),-1))
+        # output = F.log_softmax(x, dim = 1)
+        return x
 
 
 def train(infect_trainloader,infect_testloader,covid_trainloader, covid_testloader, epochs):
