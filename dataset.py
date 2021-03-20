@@ -14,13 +14,14 @@ from torchvision import transforms
 
 class Lung_Train_Dataset(Dataset):
     
-    def __init__(self, img_dir, transform=None):
+    def __init__(self, img_dir, covid=None, transform=None):
         """
         Constructor for generic Dataset class - simply assembles
         the important parameters in attributes.
         """
         self.dataset_type = 'train'
         self.transform = transform
+        self.covid = covid
         # All images are of size 150 x 150
         self.img_size = (150, 150)
         
@@ -126,6 +127,11 @@ class Lung_Train_Dataset(Dataset):
         """
         
         # Length function
+        # see if dataset is being used for covid model
+        if self.covid:
+            data_nums = list(self.dataset_numbers.values())
+            return data_nums[1] + data_nums[2]
+
         return sum(self.dataset_numbers.values())
     
     
@@ -138,25 +144,37 @@ class Lung_Train_Dataset(Dataset):
         Returns the image and its infected_label, and covid_label as a one hot vector, both
         in torch tensor format in dataset.
         """
-        
         # Get item special method
         max_num_vals = list(self.dataset_numbers.values())
         max_num_normal = int(max_num_vals[0])
         max_num_noncovid = int(max_num_vals[1])
-        if index < max_num_normal:
-            class_val = 'normal'
-            infected_label = 0
-            covid_label = 0
-        elif index < max_num_noncovid+max_num_normal:
-            class_val = 'non-covid'
-            index = index - max_num_normal
-            infected_label = 1
-            covid_label = 0
+
+        # see if dataset is being used for covid model
+        if self.covid:
+            if index < max_num_noncovid:
+                class_val = 'non-covid'
+                infected_label = 1
+                covid_label = 0
+            else:
+                class_val = 'covid'
+                index = index - max_num_noncovid
+                infected_label = 1
+                covid_label = 1
         else:
-            class_val = 'covid'
-            index = index - max_num_noncovid - max_num_normal
-            infected_label = 1
-            covid_label = 1
+            if index < max_num_normal:
+                class_val = 'normal'
+                infected_label = 0
+                covid_label = 0
+            elif index < max_num_noncovid+max_num_normal:
+                class_val = 'non-covid'
+                index = index - max_num_normal
+                infected_label = 1
+                covid_label = 0
+            else:
+                class_val = 'covid'
+                index = index - max_num_noncovid - max_num_normal
+                infected_label = 1
+                covid_label = 1
 
         im = self.open_img(self.groups, class_val, index)
         
@@ -166,12 +184,14 @@ class Lung_Train_Dataset(Dataset):
 
 class Lung_Test_Dataset(Dataset):
     
-    def __init__(self, img_dir, transform=None):
+    def __init__(self, img_dir, covid=None, transform=None):
         """
         Constructor for generic Dataset class - simply assembles
         the important parameters in attributes.
         """
         self.dataset_type = 'test'
+        self.transform = transform
+        self.covid = covid
         # All images are of size 150 x 150
         self.img_size = (150, 150)
         
@@ -279,6 +299,11 @@ class Lung_Test_Dataset(Dataset):
         """
         
         # Length function
+        # see if dataset is being used for covid model
+        if self.covid:
+            data_nums = list(self.dataset_numbers.values())
+            return data_nums[1] + data_nums[2]
+
         return sum(self.dataset_numbers.values())
     
     
@@ -291,40 +316,54 @@ class Lung_Test_Dataset(Dataset):
         Returns the image and its infected_label, and covid_label as a one hot vector, both
         in torch tensor format in dataset.
         """
-        
         # Get item special method
         max_num_vals = list(self.dataset_numbers.values())
         max_num_normal = int(max_num_vals[0])
         max_num_noncovid = int(max_num_vals[1])
-        if index < max_num_normal:
-            class_val = 'normal'
-            infected_label = 0
-            covid_label = 0
-        elif index < max_num_noncovid+max_num_normal:
-            class_val = 'non-covid'
-            index = index - max_num_normal
-            infected_label = 1
-            covid_label = 0
+
+        # see if dataset is being used for covid model
+        if self.covid:
+            if index < max_num_noncovid:
+                class_val = 'non-covid'
+                infected_label = 1
+                covid_label = 0
+            else:
+                class_val = 'covid'
+                index = index - max_num_noncovid
+                infected_label = 1
+                covid_label = 1
         else:
-            class_val = 'covid'
-            index = index - max_num_noncovid - max_num_normal
-            infected_label = 1
-            covid_label = 1
-        
+            if index < max_num_normal:
+                class_val = 'normal'
+                infected_label = 0
+                covid_label = 0
+            elif index < max_num_noncovid+max_num_normal:
+                class_val = 'non-covid'
+                index = index - max_num_normal
+                infected_label = 1
+                covid_label = 0
+            else:
+                class_val = 'covid'
+                index = index - max_num_noncovid - max_num_normal
+                infected_label = 1
+                covid_label = 1
+
         im = self.open_img(self.groups, class_val, index)
-        # plt.imshow(im)
+        
         im = transforms.functional.to_tensor(np.array(im)).float()
         return im, infected_label, covid_label
 
 
 class Lung_Val_Dataset(Dataset):
     
-    def __init__(self, img_dir, transform=None):
+    def __init__(self, img_dir, covid=None, transform=None):
         """
         Constructor for generic Dataset class - simply assembles
         the important parameters in attributes.
         """
         self.dataset_type = 'val'
+        self.transform = transform
+        self.covid = covid
         # All images are of size 150 x 150
         self.img_size = (150, 150)
         
@@ -432,6 +471,11 @@ class Lung_Val_Dataset(Dataset):
         """
         
         # Length function
+        # see if dataset is being used for covid model
+        if self.covid:
+            data_nums = list(self.dataset_numbers.values())
+            return data_nums[1] + data_nums[2]
+
         return sum(self.dataset_numbers.values())
     
     
@@ -444,39 +488,58 @@ class Lung_Val_Dataset(Dataset):
         Returns the image and its infected_label, and covid_label as a one hot vector, both
         in torch tensor format in dataset.
         """
-        
         # Get item special method
         max_num_vals = list(self.dataset_numbers.values())
         max_num_normal = int(max_num_vals[0])
         max_num_noncovid = int(max_num_vals[1])
-        if index < max_num_normal:
-            class_val = 'normal'
-            infected_label = 0
-            covid_label = 0
-        elif index < max_num_noncovid+max_num_normal:
-            class_val = 'non-covid'
-            index = index - max_num_normal
-            infected_label = 1
-            covid_label = 0
-        else:
-            class_val = 'covid'
-            index = index - max_num_noncovid - max_num_normal
-            infected_label = 1
-            covid_label = 1
-        
-        im = self.open_img(self.groups, class_val, index)
-        # plt.imshow(im)
-        im = transforms.functional.to_tensor(np.array(im)).float()
 
+        # see if dataset is being used for covid model
+        if self.covid:
+            if index < max_num_noncovid:
+                class_val = 'non-covid'
+                infected_label = 1
+                covid_label = 0
+            else:
+                class_val = 'covid'
+                index = index - max_num_noncovid
+                infected_label = 1
+                covid_label = 1
+        else:
+            if index < max_num_normal:
+                class_val = 'normal'
+                infected_label = 0
+                covid_label = 0
+            elif index < max_num_noncovid+max_num_normal:
+                class_val = 'non-covid'
+                index = index - max_num_normal
+                infected_label = 1
+                covid_label = 0
+            else:
+                class_val = 'covid'
+                index = index - max_num_noncovid - max_num_normal
+                infected_label = 1
+                covid_label = 1
+
+        im = self.open_img(self.groups, class_val, index)
+        
+        im = transforms.functional.to_tensor(np.array(im)).float()
         return im, infected_label, covid_label
 
-# dataset_dir = '../dataset'
-# ld_train = Lung_Train_Dataset(dataset_dir, transform=transforms.Compose([
+# dataset_dir = './dataset'
+# ld_train = Lung_Train_Dataset(dataset_dir, covid=True, transform=transforms.Compose([
 #   transforms.Resize((100,100)),
 # ]))
 
+# print(len(ld_train))
+
 # trainloader = DataLoader(ld_train, batch_size = 4, shuffle = False)
-# images_data, target_infected_labels, target_covid_labels = ld_train[0]
+# images_data, target_infected_labels, target_covid_labels = ld_train[7]
+# print(images_data.shape)
+# print(target_infected_labels)
+# print(target_covid_labels)
+
+
+# images_data, target_infected_labels, target_covid_labels = ld_train[8]
 # print(images_data.shape)
 # print(target_infected_labels)
 # print(target_covid_labels)
