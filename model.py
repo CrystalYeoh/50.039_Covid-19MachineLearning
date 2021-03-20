@@ -12,7 +12,7 @@ from torch.utils.data import Dataset, DataLoader
 import matplotlib.pyplot as plt
 
 
-
+#Preliminary Model of 2 Convolutional Layers
 class PreliminaryModel(nn.Module):
     def __init__(self):
         super(PreliminaryModel, self).__init__()
@@ -36,13 +36,16 @@ class PreliminaryModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
+#Low Pass filter before Preliminary model
 class LowPassModel(nn.Module):
     def __init__(self):
         super(LowPassModel, self).__init__()
-        # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
+        #Creating a convolutional layer with low pass kernel that is not to be trained
         self.low = nn.Conv2d(1, 1, 3, 1, bias=False)
         kernel_lowpass = (torch.ones(3,3)*(1/9)).expand(self.low.weight.size())
         self.low.weight = nn.Parameter(kernel_lowpass,requires_grad= False)
+
+        #Adding convolutional layers and max pool
         self.conv1 = nn.Conv2d(1, 4, 3, 1)
         self.maxpool_1 = nn.MaxPool2d(2,2)
         self.conv2 = nn.Conv2d(4, 4, 3, 1)
@@ -50,7 +53,9 @@ class LowPassModel(nn.Module):
         self.fc1 = nn.Linear(4900, 2)
 
     def forward(self, x):
+        #Apply Low pass filter
         x = self.low(x)
+
         x = self.conv1(x)
         x = F.relu(x)
         x = self.maxpool_1(x)
@@ -63,6 +68,7 @@ class LowPassModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
+#High Pass filter before Preliminary model
 class HighPassModel(nn.Module):
     def __init__(self):
         super(HighPassModel, self).__init__()
@@ -94,21 +100,31 @@ class HighPassModel(nn.Module):
 
 
 def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs):
+
+    #We first train on infected
     print("Training Binary Classifier model for Infected")
+
+    #Create model, optimizer and criterion
     model_infect = PreliminaryModel()
     optimizer = optim.Adam(model_infect.parameters(),lr=0.001)
     criterion = nn.CrossEntropyLoss()
-
+    
+    #Train the model
     train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
 
+    #Freeze the parameters in the infection model to train the covid model
     for params in model_infect.parameters():
         params.require_grad = False
 
+    #We then train an new model on covid detection
     print("Training Binary Classifier model for Covid")
+
+    #Create model, optimizer and criterion
     model_covid = PreliminaryModel()
     optimizer = optim.Adam(model_covid.parameters(),lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
+    #Train the model
     train_model(model_covid, optimizer, criterion, covid_trainloader, covid_testloader, epochs, covid = True)
 
 
@@ -116,112 +132,140 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
 # default is 2 to favour recall to minimize false negatives
 def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None, threshold=0.5, beta=2, eps=1e-9):
 
-    optimizer = optim.Adam(model.parameters(),lr=0.001)
-    criterion = nn.CrossEntropyLoss()
-
+    #Use GPU
     if torch.cuda.is_available():
         model = model.cuda()
         criterion = criterion.cuda()
 
+    #Printing model
     print(model)
 
+    #Initializing variables for printing losses and fbeta scores
     training_loss = 0
     training_loss_list = []
     training_acc_list = []
     test_loss_list = []
     test_acc_list = [] 
 
-    
+    #Initializing variables for fbeta
     beta2 = beta**2
     true_positives = 0
     predicted_positives = 0
     target_positives = 0
 
-
+    #Loop over the number of epochs
     for e in range(epochs):
         model.train()
+
+        #Loop over the batches
         for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(trainloader):
+
+            #Use either covid or infection labels depending on which setting
             if covid:
                 target = target_covid_labels
             else:
                 target = target_infected_labels
             
+            #Transfer images and labels to cpu
             if torch.cuda.is_available():
                 images = images.cuda()
                 target = target.cuda()
 
+            #Training steps
             optimizer.zero_grad()
             output = model.forward(images)
-
             loss = criterion(output, target)
-
             loss.backward()
             optimizer.step()
+
+            #Recording training loss
             training_loss += loss.item()
 
             # ps = torch.exp(output)
             # equality = (target_infected_labels.data == ps.max(dim=1)[1])
             # training_accuracy += equality.type(torch.FloatTensor).mean()
 
+            #Recording fbeta
             output = torch.exp(output)
             predicted_labels = torch.ge(output[:,1], threshold)
 
             true_positives += (predicted_labels * target).sum()
             predicted_positives += predicted_labels.sum()
             target_positives += target.sum()
-    
-        # precision = TruePositive / (TruePositive + FalsePositive)
-        precision = true_positives.div(predicted_positives.add(eps))
-        # recall = TruePositive / (TruePositive + FalseNegative)
-        recall = true_positives.div(target_positives.add(eps))
-        
-        train_fbeta = torch.mean((precision*recall).
-            mul(1 + beta2)
-            .div(precision.mul(beta2) + recall + eps)
-        )
-            
-        model.eval()
 
+        #After each epoch, we evaluate the model
+        model.eval()
+            
+        #Turn off gradients for evaluation
         with torch.no_grad():
+            
+            #Calculating fbeta scores
+
+            #precision = TruePositive / (TruePositive + FalsePositive)
+            precision = true_positives.div(predicted_positives.add(eps))
+            # recall = TruePositive / (TruePositive + FalseNegative)
+            recall = true_positives.div(target_positives.add(eps))
+
+            train_fbeta = torch.mean((precision*recall).
+                mul(1 + beta2)
+                .div(precision.mul(beta2) + recall + eps)
+            )
+
+            #Calculating test loss and test fbeta scores on test set
             test_loss, test_fbeta = validation(model, testloader, criterion, covid, beta=beta)
+
+            #Printing losses and fbeta scores
             print("Epoch: {}/{} - ".format(e+1, epochs),
             "Training Loss: {:.3f} - ".format(training_loss/len(trainloader)),
             "Training Fbeta-score: {:.3f} - ".format(train_fbeta),
             "Test Loss: {:.3f} - ".format(test_loss/len(testloader)),
             "Test Fbeta-score: {:.3f}".format(test_fbeta))
         
-        model.train()
-
+        #Record the respective losses and fbeta scores for plotting later
         training_loss_list.append(training_loss/len(trainloader))
         training_acc_list.append(train_fbeta.cpu())
         test_loss_list.append(test_loss/len(testloader))
         test_acc_list.append(test_fbeta.cpu())
 
+        #Reset loss
         training_loss = 0
 
-
+        #Switch back to training
+        model.train()
+        
+    #Visualise data after training is done
     visualisation(training_loss_list,training_acc_list,test_loss_list,test_acc_list,covid)
 
 def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1, eps=1e-9):
+
+    #Initiating variables for loss and fbeta scores
     beta2 = beta**2
     test_loss = 0
     true_positives = 0
     predicted_positives = 0
     target_positives = 0
     
+    #Loop through the data in batches
     for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
+
+        #Set labels depending on covid setting
         if covid:
             target = target_covid_labels
         else:
             target = target_infected_labels
 
+        #Switch images and labels to GPU
         if torch.cuda.is_available():
                 images = images.cuda()
                 target = target.cuda()
-                
+        
+        #Put images through model
         output = model.forward(images)
+
+        #Record loss
         test_loss += criterion(output, target).item()
         
+        #Record fbeta
         output = torch.exp(output)
         predicted_labels = torch.ge(output[:,1], threshold)
 
@@ -229,6 +273,8 @@ def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1
         predicted_positives += predicted_labels.sum()
         target_positives += target.sum()
     
+    #Calculate fbeta
+
     # precision = TruePositive / (TruePositive + FalsePositive)
     precision = true_positives.div(predicted_positives.add(eps))
     # recall = TruePositive / (TruePositive + FalseNegative)
@@ -243,6 +289,7 @@ def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1
 
 def visualisation(trainingloss, trainingacc, testloss, testacc,covid):
 
+    #Plot the graphs
     plt.xlabel("Training Examples")
     plt.ylabel("Loss/Accuracy")
     plt.plot(np.array(trainingloss),'r',label="Training Loss")
