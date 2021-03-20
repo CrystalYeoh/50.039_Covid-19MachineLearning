@@ -26,3 +26,4 @@ def make_balanced_weights(dataset):
     weights = [class_count[labels[i]] for i in range(N)]
 
     return torch.tensor(weights, dtype=torch.float)
+

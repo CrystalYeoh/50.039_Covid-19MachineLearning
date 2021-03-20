@@ -1,6 +1,6 @@
 import numpy as np
 import time
-from dataset import Lung_Train_Dataset, Lung_Test_Dataset
+from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
 from utils import make_balanced_weights
 
 import torch
@@ -24,6 +24,7 @@ class PreliminaryModel(nn.Module):
         self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_2 = nn.MaxPool2d(2,2)
         self.fc1 = nn.Linear(5184, 2)
+        self.model_name = "PreliminaryModel"
 
     def forward(self, x):
         x = self.conv1(x)
@@ -46,6 +47,7 @@ class OneModel(nn.Module):
         self.conv1 = nn.Conv2d(1, 4, 3, 1)
         self.maxpool_1 = nn.MaxPool2d(2,2)
         self.fc1 = nn.Linear(21904, 2)
+        self.model_name = "OneModel"
 
     def forward(self, x):
         x = self.conv1(x)
@@ -121,14 +123,15 @@ class HighPassModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
-def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs):
+def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs, lr =0.001):
 
     #We first train on infected
     print("Training Binary Classifier model for Infected")
 
     #Create model, optimizer and criterion
     model_infect = OneModel()
-    optimizer = optim.Adam(model_infect.parameters(),lr=0.001)
+    model_infect.lr = lr
+    optimizer = optim.Adam(model_infect.parameters(),lr=lr)
     criterion = nn.CrossEntropyLoss()
     
     #Train the model
@@ -143,7 +146,8 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
 
     #Create model, optimizer and criterion
     model_covid = PreliminaryModel()
-    optimizer2 = optim.Adam(model_covid.parameters(),lr=0.001)
+    optimizer2 = optim.Adam(model_covid.parameters(),lr=lr)
+    model_covid.lr = lr
     criterion2 = nn.CrossEntropyLoss()
 
     train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True)
@@ -151,8 +155,9 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
 
 # determine default value of beta
 # default is 2 to favour recall to minimize false negatives
-def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None, threshold=0.5, beta=2, eps=1e-9):
+def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None,  threshold=0.5, beta=2, eps=1e-9):
 
+    
     #Use GPU
     if torch.cuda.is_available():
         model = model.cuda()
@@ -251,11 +256,62 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
         #Reset loss
         training_loss = 0
 
+        save(model,model.model_name+".pt")
+
         #Switch back to training
         model.train()
         
     #Visualise data after training is done
     visualisation(training_loss_list,training_acc_list,test_loss_list,test_acc_list,covid)
+
+def test(model_infect,model_covid,validloader,criterion, threshold=0.5, beta=1, eps=1e-9):
+
+    if torch.cuda.is_available():
+        model_infect = model_infect.cuda()
+        model_covid = model_covid.cuda()
+
+    #Initiating variables for loss and fbeta scores
+    beta2 = beta**2
+    true_positives = 0
+    predicted_positives = 0
+    target_positives = 0
+    
+    #Loop through the data in batches
+    for batch_idx, (images, target_i, target_c) in enumerate(validloader): 
+
+        #Switch images and labels to GPU
+        if torch.cuda.is_available():
+                images = images.cuda()
+                target_i = target_i.cuda()
+                target_c = target_c.cuda()
+        
+        #Put images through model
+        output = model_infect.forward(images)
+
+        print(output)
+
+        #Record fbeta
+        output = torch.exp(output)
+        predicted_labels = torch.ge(output[:,1], threshold)
+
+        true_positives += (predicted_labels * target).sum()
+        predicted_positives += predicted_labels.sum()
+        target_positives += target.sum()
+    
+    #Calculate fbeta
+
+    # precision = TruePositive / (TruePositive + FalsePositive)
+    precision = true_positives.div(predicted_positives.add(eps))
+    # recall = TruePositive / (TruePositive + FalseNegative)
+    recall = true_positives.div(target_positives.add(eps))
+    
+    fbeta = torch.mean((precision*recall).
+        mul(1 + beta2)
+        .div(precision.mul(beta2) + recall + eps)
+    )
+    
+    return test_loss, fbeta
+
 
 def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1, eps=1e-9):
 
@@ -326,6 +382,40 @@ def visualisation(trainingloss, trainingacc, testloss, testacc,covid):
 
 dataset_dir = './dataset'
 
+def save(model, path):
+    checkpoint = {
+                  'c_lr': model.lr,
+                  'state_dict': model.state_dict(),
+                  'model_name': model.model_name,
+                  }
+    torch.save(checkpoint, path)
+
+# Define function to load model
+def load(path):
+    cp = torch.load(path)
+    
+    # Import pre-trained NN model 
+    model_name = cp['model_name']
+    if model_name == "PreliminaryModel":
+        model = PreliminaryModel()
+    elif model_name == "OneModel":
+        model = OneModel()
+    
+    # Freeze parameters that we don't need to re-train 
+    for param in model.parameters():
+        param.requires_grad = False
+    
+
+    # Add model info 
+    model.lr = cp['c_lr']
+    model.model_name = cp['model_name']
+    model.load_state_dict(cp['state_dict'])
+    
+    return model
+    
+
+
+
 # ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
 # trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
 # ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
@@ -335,14 +425,22 @@ dataset_dir = './dataset'
 # ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
 # testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle = True)
 
-ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
-trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
-ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-testloader = DataLoader(ld_test, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test), len(ld_test)))
+# ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
+# trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+# ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
+# testloader = DataLoader(ld_test, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test), len(ld_test)))
 
-ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
-trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
-ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
-testloader_c = DataLoader(ld_test_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test_c), len(ld_test_c)))
+# ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
+# trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+# ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
+# testloader_c = DataLoader(ld_test_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test_c), len(ld_test_c)))
 
-train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 5)
+# train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 5)
+
+
+model_infected = load("OneModel.pt")
+model_covid = load("PreliminaryModel.pt")
+
+ld_valid = Lung_Val_Dataset(dataset_dir,covid=None)
+validloader = DataLoader(ld_valid,batch_size=64)
+test(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
