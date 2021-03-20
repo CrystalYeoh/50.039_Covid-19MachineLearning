@@ -1,6 +1,8 @@
 import torch
 from torch.utils.data import DataLoader
 
+from dataset import Lung_Train_Dataset
+
 def make_balanced_weights(dataset):
     covid = dataset.covid
 
@@ -26,3 +28,51 @@ def make_balanced_weights(dataset):
     weights = [class_count[labels[i]] for i in range(N)]
 
     return torch.tensor(weights, dtype=torch.float)
+
+def make_weight_losses(dataloader, covid):
+    labels = []
+    positive_count = 0
+    for images, infected_labels, covid_labels in dataloader:
+        if covid:
+            labels += covid_labels
+            positive_count += covid_labels.sum()
+        else:
+            labels += infected_labels
+            positive_count += infected_labels.sum()
+
+    N = len(labels)
+
+    return torch.tensor([N/(N-positive_count), N/positive_count])
+
+def cal_mean_and_sd(loader):
+    cnt = 0
+    fst_moment = torch.empty(3)
+    snd_moment = torch.empty(3)
+
+    for data in loader:
+        data = data[0]
+        
+        b, c, h, w = data.shape
+        nb_pixels = b * h * w
+        sum_ = torch.sum(data, dim=[0, 2, 3])
+        sum_of_square = torch.sum(data ** 2, dim=[0, 2, 3])
+        fst_moment = (cnt * fst_moment + sum_) / (cnt + nb_pixels)
+        snd_moment = (cnt * snd_moment + sum_of_square) / (cnt + nb_pixels)
+
+        cnt += nb_pixels
+
+    return fst_moment, torch.sqrt(snd_moment - fst_moment ** 2)
+
+# dataset_dir = './dataset'
+
+# dataset = Lung_Train_Dataset(dataset_dir, covid=True)
+# loader = DataLoader(
+#     dataset,
+#     batch_size=1,
+#     shuffle=False
+# )
+
+# mean, std = cal_mean_and_sd(loader)
+# print(mean, std)
+# tensor([0.4824, 0.4824, 0.4824]) tensor([0.2363, 0.2363, 0.2363]) for Lung_Train w/o covid
+# tensor([0.4832, 0.4832, 0.4832]) tensor([0.2330, 0.2330, 0.2330]) for Lung_Train with covid

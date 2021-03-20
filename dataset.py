@@ -98,7 +98,7 @@ class Lung_Train_Dataset(Dataset):
         with open(path_to_file, 'rb') as f:
             img = Image.open(f)
             if self.transform:
-              img = self.transform(img)
+                img = self.transform(img)
             im = np.asarray(img)/255
         f.close()
         return im
@@ -530,9 +530,13 @@ class Lung_Val_Dataset(Dataset):
 #   transforms.Resize((100,100)),
 # ]))
 
-# print(len(ld_train))
+# ld_train = Lung_Test_Dataset(dataset_dir, covid=True)
 
-# trainloader = DataLoader(ld_train, batch_size = 4, shuffle = False)
+# # print(len(ld_train))
+
+# trainloader = DataLoader(ld_train, batch_size = 64, shuffle = False)
+# for data in trainloader:
+#     print('h')
 # images_data, target_infected_labels, target_covid_labels = ld_train[7]
 # print(images_data.shape)
 # print(target_infected_labels)
@@ -544,9 +548,6 @@ class Lung_Val_Dataset(Dataset):
 # print(target_infected_labels)
 # print(target_covid_labels)
 
-# for batch_idx, data in enumerate(trainloader):
-#   images_data, target_infected_labels, target_covid_labels = data
-  
 #   print(f'Batch {batch_idx}')
 #   print(images_data.shape)
 #   print(target_infected_labels, target_covid_labels)

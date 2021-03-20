@@ -1,14 +1,14 @@
 import numpy as np
 import time
 from dataset import Lung_Train_Dataset, Lung_Test_Dataset
-from utils import make_balanced_weights
+from utils import make_balanced_weights, make_weight_losses
 
 import torch
 from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from torchvision import models
-# from torchvision import transforms
+from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
 import matplotlib.pyplot as plt
@@ -23,6 +23,7 @@ class PreliminaryModel(nn.Module):
         self.maxpool_1 = nn.MaxPool2d(2,2)
         self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_2 = nn.MaxPool2d(2,2)
+        # self.bnorm = nn.BatchNorm2d(4)
         self.fc1 = nn.Linear(5184, 2)
 
     def forward(self, x):
@@ -30,9 +31,41 @@ class PreliminaryModel(nn.Module):
         x = F.relu(x)
         x = self.maxpool_1(x)
         x = self.conv2(x)
+        # x = self.bnorm(x)
         x = F.relu(x)
         x = self.maxpool_2(x)
         x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        # x = x.view((x.size(0),-1))
+        # output = F.log_softmax(x, dim = 1)
+        return x
+class OverfitModel(nn.Module):
+    def __init__(self):
+        super(OverfitModel, self).__init__()
+        # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
+        self.conv1 = nn.Conv2d(1, 4, 3, 1)
+        self.conv2 = nn.Conv2d(4, 4, 3, 1)
+        self.maxpool_1 = nn.MaxPool2d(2,2)
+        self.conv3 = nn.Conv2d(4, 4, 3, 1)
+        self.conv4 = nn.Conv2d(4, 4, 3, 1)
+        # self.conv2 = nn.Conv2d(64, 64, 3, 1)
+        self.maxpool_2 = nn.MaxPool2d(2,2)
+        self.fc1 = nn.Linear(4624, 2)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.conv2(x)
+        x = F.relu(x)
+        x = self.maxpool_1(x)
+
+        x = self.conv3(x)
+        x = F.relu(x)
+        x = self.conv4(x)
+        x = F.relu(x)
+        x = self.maxpool_2(x)
+        x = torch.flatten(x, 1)
+        # print(x.shape)
         x = self.fc1(x)
         # x = x.view((x.size(0),-1))
         # output = F.log_softmax(x, dim = 1)
@@ -121,15 +154,15 @@ class HighPassModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
-def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs):
+def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs, weight_decay=0):
 
     #We first train on infected
     print("Training Binary Classifier model for Infected")
 
     #Create model, optimizer and criterion
-    model_infect = OneModel()
-    optimizer = optim.Adam(model_infect.parameters(),lr=0.001)
-    criterion = nn.CrossEntropyLoss()
+    model_infect = PreliminaryModel()
+    optimizer = optim.Adam(model_infect.parameters(), lr=0.001, weight_decay=weight_decay)
+    criterion = nn.CrossEntropyLoss(make_weight_losses(infect_trainloader, False))
     
     #Train the model
     train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
@@ -143,8 +176,8 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
 
     #Create model, optimizer and criterion
     model_covid = PreliminaryModel()
-    optimizer2 = optim.Adam(model_covid.parameters(),lr=0.001)
-    criterion2 = nn.CrossEntropyLoss()
+    optimizer2 = optim.Adam(model_covid.parameters(),lr=0.001, weight_decay=weight_decay)
+    criterion2 = nn.CrossEntropyLoss(make_weight_losses(covid_trainloader, True))
 
     train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True)
 
@@ -308,7 +341,7 @@ def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1
     
     return test_loss, fbeta
 
-def visualisation(trainingloss, trainingacc, testloss, testacc,covid):
+def visualisation(trainingloss, trainingacc, testloss, testacc, covid):
 
     #Plot the graphs
     plt.xlabel("Training Examples")
@@ -334,15 +367,28 @@ dataset_dir = './dataset'
 # trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle = True)
 # ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
 # testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle = True)
+# infected_transforms = transforms.Compose([
+#     transforms.ToTensor(),
+#     transforms.Normalize((0.4824,), (0.2363,)),
+#     transforms.ToPILImage(),
+# ])
+infected_transforms = transforms.Compose([
+    transforms.ColorJitter(0.25,0.25,0.25),
+    transforms.RandomRotation(10),
+    # transforms.ToTensor(),
+    # transforms.Normalize((0.4824,), (0.2363,)),
+    # transforms.ToPILImage(),
+])
+# infected_transforms = None
 
-ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
+ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=infected_transforms)
 trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-testloader = DataLoader(ld_test, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test), len(ld_test)))
+testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
 
 ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
 trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
-testloader_c = DataLoader(ld_test_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_test_c), len(ld_test_c)))
+testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
 
-train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 5)
+train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 10, weight_decay=1e-4)
