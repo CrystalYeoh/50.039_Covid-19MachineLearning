@@ -166,7 +166,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Infected")
 
     #Create model, optimizer and criterion
-    model_infect = LowPassModel()
+    model_infect = OneModel()
     model_infect.lr = lr
     optimizer = optim.Adam(model_infect.parameters(),lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss(make_weight_losses(infect_trainloader, False))
@@ -182,7 +182,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Covid")
 
     #Create model, optimizer and criterion
-    model_covid = HighPassModel()
+    model_covid = PreliminaryModel()
     model_covid.lr = lr
     optimizer2 = optim.Adam(model_covid.parameters(),lr=lr, weight_decay=weight_decay)
     criterion2 = nn.CrossEntropyLoss(make_weight_losses(covid_trainloader, True))
@@ -479,6 +479,7 @@ dataset_dir = './dataset'
 train_transforms = transforms.Compose([
     transforms.ColorJitter(0.25,0.25,0.25),
     transforms.RandomRotation(15),
+    transforms.RandomAffine(15, scale=(0.9,1.1)),
     transforms.ToTensor(),
     transforms.Normalize((0.4824,), (0.2363,)),
     transforms.ToPILImage(),
@@ -499,7 +500,7 @@ trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSa
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
 testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
 
-model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=15, lr=0.001, weight_decay=1e-4)
+model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=5, lr=0.001, weight_decay=1e-4)
 
 # model_infect = load("infected_OneModel.pt")
 # model_covid = load("covid_PreliminaryModel.pt")
