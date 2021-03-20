@@ -323,7 +323,6 @@ class Lung_Test_Dataset(Dataset):
 
         # see if dataset is being used for covid model
         if self.covid:
-            print(index)
             if index < max_num_noncovid:
                 class_val = 'non-covid'
                 infected_label = 1

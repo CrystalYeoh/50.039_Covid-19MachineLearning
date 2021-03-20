@@ -36,6 +36,27 @@ class PreliminaryModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
+#Preliminary Model of 2 Convolutional Layers
+class OneModel(nn.Module):
+    def __init__(self):
+        super(OneModel, self).__init__()
+        # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
+        self.conv1 = nn.Conv2d(1, 4, 3, 1)
+        self.maxpool_1 = nn.MaxPool2d(2,2)
+        self.fc1 = nn.Linear(21904, 2)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.maxpool_1(x)
+        x = torch.flatten(x, 1)
+        # print(x.shape)
+        x = self.fc1(x)
+        # x = x.view((x.size(0),-1))
+        # output = F.log_softmax(x, dim = 1)
+        return x
+
+
 #Low Pass filter before Preliminary model
 class LowPassModel(nn.Module):
     def __init__(self):
@@ -105,12 +126,12 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Infected")
 
     #Create model, optimizer and criterion
-    model_infect = PreliminaryModel()
+    model_infect = OneModel()
     optimizer = optim.Adam(model_infect.parameters(),lr=0.001)
     criterion = nn.CrossEntropyLoss()
     
     #Train the model
-    # train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
+    train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
 
     #Freeze the parameters in the infection model to train the covid model
     for params in model_infect.parameters():
@@ -212,7 +233,7 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
             )
 
             #Calculating test loss and test fbeta scores on test set
-            test_loss, test_fbeta = validation(model, testloader, criterion, covid, beta=beta)
+            test_loss, test_fbeta = validation(model, testloader, criterion, covid=covid, beta=beta)
 
             #Printing losses and fbeta scores
             print("Epoch: {}/{} - ".format(e+1, epochs),
@@ -307,11 +328,14 @@ dataset_dir = './dataset'
 
 ld_train = Lung_Train_Dataset(dataset_dir, covid = None)
 trainloader = DataLoader(ld_train, batch_size = 64, shuffle = True)
+
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
 testloader = DataLoader(ld_test, batch_size = 64, shuffle = True)
+
 ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True)
 trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle = True)
+
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True)
 testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle = True)
 
-train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 10)
+train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 5)
