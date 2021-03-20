@@ -2,6 +2,7 @@ import numpy as np
 import time
 from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
 from utils import make_balanced_weights
+from PIL import Image
 
 import torch
 from torch import nn
@@ -288,29 +289,39 @@ def test(model_infect,model_covid,validloader,criterion, threshold=0.5, beta=1, 
         #Put images through model
         output = model_infect.forward(images)
 
-        print(output)
+        ps = torch.exp(output)
+        predict_infect = torch.ge(output[:,1], threshold)
 
-        #Record fbeta
-        output = torch.exp(output)
-        predicted_labels = torch.ge(output[:,1], threshold)
+        output = model_covid.forward(images)
+        ps = torch.exp(output)
+        predict_covid = torch.ge(output[:,1], threshold)
 
-        true_positives += (predicted_labels * target).sum()
-        predicted_positives += predicted_labels.sum()
-        target_positives += target.sum()
+        for i in range(len(predict_covid)):
+            print("Validation",i)
+            print("Ground Truth:", target_i[i].cpu().numpy())
+            print("Predicted Label:",predict_infect[i].cpu().numpy())
+            print("Ground Truth:", target_c[i].cpu().numpy())
+            print("Predicted Label",predict_covid[i].cpu().numpy())
+            print()
     
-    #Calculate fbeta
 
-    # precision = TruePositive / (TruePositive + FalsePositive)
-    precision = true_positives.div(predicted_positives.add(eps))
-    # recall = TruePositive / (TruePositive + FalseNegative)
-    recall = true_positives.div(target_positives.add(eps))
+    #     true_positives += (predicted_labels * target).sum()
+    #     predicted_positives += predicted_labels.sum()
+    #     target_positives += target.sum()
     
-    fbeta = torch.mean((precision*recall).
-        mul(1 + beta2)
-        .div(precision.mul(beta2) + recall + eps)
-    )
+    # #Calculate fbeta
+
+    # # precision = TruePositive / (TruePositive + FalsePositive)
+    # precision = true_positives.div(predicted_positives.add(eps))
+    # # recall = TruePositive / (TruePositive + FalseNegative)
+    # recall = true_positives.div(target_positives.add(eps))
     
-    return test_loss, fbeta
+    # fbeta = torch.mean((precision*recall).
+    #     mul(1 + beta2)
+    #     .div(precision.mul(beta2) + recall + eps)
+    # )
+    
+    # return test_loss, fbeta
 
 
 def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1, eps=1e-9):
@@ -438,9 +449,9 @@ def load(path):
 # train(trainloader, testloader, trainloader_c, testloader_c,  epochs = 5)
 
 
-model_infected = load("OneModel.pt")
+model_infect = load("OneModel.pt")
 model_covid = load("PreliminaryModel.pt")
 
 ld_valid = Lung_Val_Dataset(dataset_dir,covid=None)
-validloader = DataLoader(ld_valid,batch_size=64)
+validloader = DataLoader(ld_valid,batch_size=64,shuffle=False)
 test(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
