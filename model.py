@@ -1,7 +1,5 @@
 import numpy as np
 import time
-from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
-from utils import make_balanced_weights
 from PIL import Image
 from utils import make_balanced_weights, make_weight_losses
 
@@ -15,6 +13,9 @@ from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
 
 import matplotlib.pyplot as plt
 
+from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
+from utils import make_balanced_weights, make_weight_losses, save
+from visualise import plot_curve, visualise_val_predictions
 
 #Preliminary Model of 2 Convolutional Layers
 class PreliminaryModel(nn.Module):
@@ -95,11 +96,11 @@ class OneModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
-
 #Low Pass filter before Preliminary model
 class LowPassModel(nn.Module):
     def __init__(self):
         super(LowPassModel, self).__init__()
+        self.model_name = "LowPass"
         #Creating a convolutional layer with low pass kernel that is not to be trained
         self.low = nn.Conv2d(1, 1, 3, 1, bias=False)
         kernel_lowpass = (torch.ones(3,3)*(1/9)).expand(self.low.weight.size())
@@ -132,6 +133,7 @@ class LowPassModel(nn.Module):
 class HighPassModel(nn.Module):
     def __init__(self):
         super(HighPassModel, self).__init__()
+        self.model_name = "HighPass"
         # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
         self.high = nn.Conv2d(1, 1, 3, 1, bias=False)
         kernel_highpass = (torch.ones(3,3)*(-1/9))
@@ -164,7 +166,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Infected")
 
     #Create model, optimizer and criterion
-    model_infect = OneModel()
+    model_infect = LowPassModel()
     model_infect.lr = lr
     optimizer = optim.Adam(model_infect.parameters(),lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss(make_weight_losses(infect_trainloader, False))
@@ -180,7 +182,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Covid")
 
     #Create model, optimizer and criterion
-    model_covid = PreliminaryModel()
+    model_covid = HighPassModel()
     model_covid.lr = lr
     optimizer2 = optim.Adam(model_covid.parameters(),lr=lr, weight_decay=weight_decay)
     criterion2 = nn.CrossEntropyLoss(make_weight_losses(covid_trainloader, True))
@@ -287,16 +289,16 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
 
         #Reset loss
         training_loss = 0
-        if covid:
-            save(model, "covid_" + model.model_name + ".pt")
-        else:
-            save(model, "infected_" + model.model_name + ".pt")
+    if covid:
+        save(model, "covid_" + model.model_name + ".pt")
+    else:
+        save(model, "infected_" + model.model_name + ".pt")
         
         model.train()
     #Visualise data after training is done
     plot_curve(training_loss_list,training_acc_list,test_loss_list,test_acc_list,covid)
 
-def test(model_infect, model_covid, validloader, criterion, threshold=0.5):
+def test_overall_model(model_infect, model_covid, validloader, criterion, threshold=0.5):
 
     if torch.cuda.is_available():
         model_infect = model_infect.cuda()
@@ -391,43 +393,6 @@ def test(model_infect, model_covid, validloader, criterion, threshold=0.5):
     
     # return test_loss, fbeta
 
-def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accuracy):
-    plt.figure(figsize = (10, 10))
-    plt.suptitle('Validation set pictures, with predicted and ground truth labels.\nAccuracy: {:.3f}'.format(accuracy))
-
-    images = []
-    for i in range(len(dataset)):
-        images.append(dataset[i][0])
-    
-    for i in range(len(target_i)):
-        plt.subplot(5, 5, i+1)
-
-        plt.xticks([], [])
-        plt.yticks([], [])
-
-        if target_i[i] == 0:
-            ground_truth = 'normal'
-        else:
-            if target_c[i] == 0:
-                ground_truth = 'non-covid'
-            else:
-                ground_truth = 'covid'
-
-        if pred_i[i] == 0:
-            pred_label = 'normal'
-        else:
-            if pred_c[i] == 0:
-                pred_label = 'non-covid'
-            else:
-                pred_label = 'covid'
-
-        plt.title(f"Ground Truth Label: {ground_truth}\nPredicted Label: {pred_label}", fontdict={"fontsize":9})
-        plt.imshow(images[i].squeeze())
-    
-    plt.tight_layout()
-    plt.savefig('validation_display')
-
-
 def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1, eps=1e-9):
 
     #Initiating variables for loss and fbeta scores
@@ -487,33 +452,6 @@ def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1
     
     return test_loss, fbeta, training_accuracy
 
-def plot_curve(trainingloss, trainingacc, testloss, testacc,covid):
-
-    #Plot the graphs
-    plt.xlabel("Training Examples")
-    plt.ylabel("Loss/Accuracy")
-    plt.plot(np.array(trainingloss),'r',label="Training Loss")
-    plt.plot(np.array(trainingacc),'orange',label="Training Accuracy")
-    plt.plot(np.array(testloss),'g',label = "Test Loss")
-    plt.plot(np.array(testacc),'b',label = "Test Accuracy") 
-    plt.legend(loc='upper right', frameon=False)
-    plt.plot()
-    if covid:
-        plt.savefig("covid")
-    else:
-        plt.savefig("infect")
-    plt.clf()
-
-dataset_dir = './dataset'
-
-def save(model, path):
-    checkpoint = {
-                  'c_lr': model.lr,
-                  'state_dict': model.state_dict(),
-                  'model_name': model.model_name,
-                  }
-    torch.save(checkpoint, path)
-
 # Define function to load model
 def load(path):
     cp = torch.load(path)
@@ -535,19 +473,15 @@ def load(path):
     model.load_state_dict(cp['state_dict'])
     
     return model
-    
 
-# infected_transforms = transforms.Compose([
-#     transforms.ToTensor(),
-#     transforms.Normalize((0.4824,), (0.2363,)),
-#     transforms.ToPILImage(),
-# ])
+dataset_dir = './dataset'
+
 train_transforms = transforms.Compose([
+    transforms.ColorJitter(0.25,0.25,0.25),
+    transforms.RandomRotation(15),
     transforms.ToTensor(),
     transforms.Normalize((0.4824,), (0.2363,)),
     transforms.ToPILImage(),
-    transforms.ColorJitter(0.25,0.25,0.25),
-    transforms.RandomRotation(15),
 ])
 img_transforms = transforms.Compose([
     transforms.ToTensor(),
@@ -555,24 +489,24 @@ img_transforms = transforms.Compose([
     transforms.ToPILImage(),
 ])
 
-# ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
-# trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
-# ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
-# testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
+ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
+trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
+testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
 
-# ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
-# trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
-# ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
-# testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
+ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
+trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
+testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
 
-# model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=20, lr=0.001, weight_decay=1e-4)
+model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=15, lr=0.001, weight_decay=1e-4)
 
-model_infect = load("infected_OneModel.pt")
-model_covid = load("covid_PreliminaryModel.pt")
+# model_infect = load("infected_OneModel.pt")
+# model_covid = load("covid_PreliminaryModel.pt")
 
 ld_valid = Lung_Val_Dataset(dataset_dir,covid=None, transform=img_transforms)
 validloader = DataLoader(ld_valid,batch_size=64,shuffle=False)
-images, target_i, target_c, pred_i, pred_c, acc = test(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
+images, target_i, target_c, pred_i, pred_c, acc = test_overall_model(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
 ld_valid_display = Lung_Val_Dataset(dataset_dir, covid=None)
 visualise_val_predictions(ld_valid_display, target_i, target_c, pred_i, pred_c, acc)
 

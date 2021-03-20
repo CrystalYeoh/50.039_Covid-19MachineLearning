@@ -1,6 +1,9 @@
 import torch
 from torch.utils.data import DataLoader
 
+import numpy as np
+import matplotlib.pyplot as plt
+
 from dataset import Lung_Train_Dataset
 
 def make_balanced_weights(dataset):
@@ -44,6 +47,7 @@ def make_weight_losses(dataloader, covid):
 
     return torch.tensor([N/(N-positive_count), N/positive_count])
 
+# tensor([0.4824, 0.4824, 0.4824]) tensor([0.2363, 0.2363, 0.2363]) for Lung_Train w/o covid
 def cal_mean_and_sd(loader):
     cnt = 0
     fst_moment = torch.empty(3)
@@ -63,16 +67,10 @@ def cal_mean_and_sd(loader):
 
     return fst_moment, torch.sqrt(snd_moment - fst_moment ** 2)
 
-# dataset_dir = './dataset'
-
-# dataset = Lung_Train_Dataset(dataset_dir, covid=True)
-# loader = DataLoader(
-#     dataset,
-#     batch_size=1,
-#     shuffle=False
-# )
-
-# mean, std = cal_mean_and_sd(loader)
-# print(mean, std)
-# tensor([0.4824, 0.4824, 0.4824]) tensor([0.2363, 0.2363, 0.2363]) for Lung_Train w/o covid
-# tensor([0.4832, 0.4832, 0.4832]) tensor([0.2330, 0.2330, 0.2330]) for Lung_Train with covid
+def save(model, path):
+    checkpoint = {
+                  'c_lr': model.lr,
+                  'state_dict': model.state_dict(),
+                  'model_name': model.model_name,
+                  }
+    torch.save(checkpoint, path)
