@@ -7,8 +7,9 @@ from torch import nn
 from torch import optim
 import torch.nn.functional as F
 from torchvision import models
-# from torchvision import transforms
 from torch.utils.data import Dataset, DataLoader
+
+import matplotlib.pyplot as plt
 
 
 
@@ -31,7 +32,7 @@ class PreliminaryModel(nn.Module):
         x = self.maxpool_2(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        x = x.view((x.size(0),-1))
+        # x = x.view((x.size(0),-1))
         # output = F.log_softmax(x, dim = 1)
         return x
 
@@ -56,10 +57,9 @@ class LowPassModel(nn.Module):
         x = self.conv2(x)
         x = F.relu(x)
         x = self.maxpool_2(x)
-        # x = x.view((x.size(0),-1))
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        x = x.view((x.size(0),-1))
+        # x = x.view((x.size(0),-1))
         # output = F.log_softmax(x, dim = 1)
         return x
 
@@ -86,36 +86,38 @@ class HighPassModel(nn.Module):
         x = self.conv2(x)
         x = F.relu(x)
         x = self.maxpool_2(x)
-        # x = x.view((x.size(0),-1))
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        x = x.view((x.size(0),-1))
+        # x = x.view((x.size(0),-1))
         # output = F.log_softmax(x, dim = 1)
         return x
 
 
-def train(infect_trainloader,infect_testloader,covid_trainloader, covid_testloader, epochs):
+def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs):
+    print("Training Binary Classifier model for Infected")
     model_infect = PreliminaryModel()
     optimizer = optim.Adam(model_infect.parameters(),lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    train_model(model_infect,optimizer, criterion, infect_trainloader, infect_testloader, epochs)
+    train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
 
     for params in model_infect.parameters():
         params.require_grad = False
 
+    print("Training Binary Classifier model for Covid")
     model_covid = PreliminaryModel()
     optimizer = optim.Adam(model_covid.parameters(),lr=0.001)
     criterion = nn.CrossEntropyLoss()
 
-    train_model(model_covid,optimizer, criterion, covid_trainloader, covid_testloader, epochs, covid = True)
+    train_model(model_covid, optimizer, criterion, covid_trainloader, covid_testloader, epochs, covid = True)
 
 
+# determine default value of beta
+# default is 2 to favour recall to minimize false negatives
+def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None, threshold=0.5, beta=2, eps=1e-9):
 
-
-    
-#todo set lr
-def train_model(model, optimizer, criterion, trainloader,testloader, epochs, covid = None):
+    optimizer = optim.Adam(model.parameters(),lr=0.001)
+    criterion = nn.CrossEntropyLoss()
 
     if torch.cuda.is_available():
         model = model.cuda()
@@ -124,7 +126,16 @@ def train_model(model, optimizer, criterion, trainloader,testloader, epochs, cov
     print(model)
 
     training_loss = 0
-    training_accuracy = 0
+    training_loss_list = []
+    training_acc_list = []
+    test_loss_list = []
+    test_acc_list = [] 
+
+    
+    beta2 = beta**2
+    true_positives = 0
+    predicted_positives = 0
+    target_positives = 0
 
 
     for e in range(epochs):
@@ -148,27 +159,55 @@ def train_model(model, optimizer, criterion, trainloader,testloader, epochs, cov
             optimizer.step()
             training_loss += loss.item()
 
-            ps = torch.exp(output)
-            equality = (target.data == ps.max(dim=1)[1])
-            training_accuracy += equality.type(torch.FloatTensor).mean()
+            # ps = torch.exp(output)
+            # equality = (target_infected_labels.data == ps.max(dim=1)[1])
+            # training_accuracy += equality.type(torch.FloatTensor).mean()
+
+            output = torch.exp(output)
+            predicted_labels = torch.ge(output[:,1], threshold)
+
+            true_positives += (predicted_labels * target).sum()
+            predicted_positives += predicted_labels.sum()
+            target_positives += target.sum()
+    
+        # precision = TruePositive / (TruePositive + FalsePositive)
+        precision = true_positives.div(predicted_positives.add(eps))
+        # recall = TruePositive / (TruePositive + FalseNegative)
+        recall = true_positives.div(target_positives.add(eps))
+        
+        train_fbeta = torch.mean((precision*recall).
+            mul(1 + beta2)
+            .div(precision.mul(beta2) + recall + eps)
+        )
             
         model.eval()
 
         with torch.no_grad():
-            test_loss, accuracy = validation(model, testloader, criterion, covid)
+            test_loss, test_fbeta = validation(model, testloader, criterion, covid, beta=beta)
             print("Epoch: {}/{} - ".format(e+1, epochs),
             "Training Loss: {:.3f} - ".format(training_loss/len(trainloader)),
-            "Training Accuracy: {:.3f} - ".format(training_accuracy/len(trainloader)),
+            "Training Fbeta-score: {:.3f} - ".format(train_fbeta),
             "Test Loss: {:.3f} - ".format(test_loss/len(testloader)),
-            "Test Accuracy: {:.3f}".format(accuracy/len(testloader)))
+            "Test Fbeta-score: {:.3f}".format(test_fbeta))
         
         model.train()
-        training_loss = 0
-        training_accuracy = 0
 
-def validation(model, testloader, criterion, covid = None):
+        training_loss_list.append(training_loss/len(trainloader))
+        training_acc_list.append(train_fbeta.cpu())
+        test_loss_list.append(test_loss/len(testloader))
+        test_acc_list.append(test_fbeta.cpu())
+
+        training_loss = 0
+
+
+    visualisation(training_loss_list,training_acc_list,test_loss_list,test_acc_list,covid)
+
+def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1, eps=1e-9):
+    beta2 = beta**2
     test_loss = 0
-    accuracy = 0
+    true_positives = 0
+    predicted_positives = 0
+    target_positives = 0
     
     for batch_idx, (images, target_infected_labels, target_covid_labels) in enumerate(testloader): 
         if covid:
@@ -183,15 +222,39 @@ def validation(model, testloader, criterion, covid = None):
         output = model.forward(images)
         test_loss += criterion(output, target).item()
         
-        ps = torch.exp(output)
-        equality = (target.data == ps.max(dim=1)[1])
-        accuracy += equality.type(torch.FloatTensor).mean()
+        output = torch.exp(output)
+        predicted_labels = torch.ge(output[:,1], threshold)
+
+        true_positives += (predicted_labels * target).sum()
+        predicted_positives += predicted_labels.sum()
+        target_positives += target.sum()
     
+    # precision = TruePositive / (TruePositive + FalsePositive)
+    precision = true_positives.div(predicted_positives.add(eps))
+    # recall = TruePositive / (TruePositive + FalseNegative)
+    recall = true_positives.div(target_positives.add(eps))
+    
+    fbeta = torch.mean((precision*recall).
+        mul(1 + beta2)
+        .div(precision.mul(beta2) + recall + eps)
+    )
+    
+    return test_loss, fbeta
 
-    return test_loss, accuracy
+def visualisation(trainingloss, trainingacc, testloss, testacc,covid):
 
-
-
+    plt.xlabel("Training Examples")
+    plt.ylabel("Loss/Accuracy")
+    plt.plot(np.array(trainingloss),'r',label="Training Loss")
+    plt.plot(np.array(trainingacc),'orange',label="Training Accuracy")
+    plt.plot(np.array(testloss),'g',label = "Test Loss")
+    plt.plot(np.array(testacc),'b',label = "Test Accuracy") 
+    plt.plot()
+    if covid:
+        plt.savefig("covid")
+    else:
+        plt.savefig("infect")
+    plt.clf()
 
 dataset_dir = './dataset'
 
