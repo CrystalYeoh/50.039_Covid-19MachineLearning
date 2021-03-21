@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from dataset import Lung_Train_Dataset, Lung_Test_Dataset
+from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
 
 def chart_dataset_sizes(dataset):
     # Pie chart, where the slices will be ordered and plotted counter-clockwise:

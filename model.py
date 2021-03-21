@@ -43,36 +43,70 @@ class PreliminaryModel(nn.Module):
         # x = x.view((x.size(0),-1))
         # output = F.log_softmax(x, dim = 1)
         return x
-class OverfitModel(nn.Module):
+
+# Additional fc layer for classification
+class AdditionalModel(nn.Module):
     def __init__(self):
-        super(OverfitModel, self).__init__()
+        super(AdditionalModel, self).__init__()
         # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
         self.conv1 = nn.Conv2d(1, 4, 3, 1)
-        self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_1 = nn.MaxPool2d(2,2)
-        self.conv3 = nn.Conv2d(4, 4, 3, 1)
-        self.conv4 = nn.Conv2d(4, 4, 3, 1)
-        # self.conv2 = nn.Conv2d(64, 64, 3, 1)
+        self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_2 = nn.MaxPool2d(2,2)
-        self.fc1 = nn.Linear(4624, 2)
+        # self.bnorm = nn.BatchNorm2d(4)
+        self.fc1 = nn.Linear(5184, 1000)
+        self.fc2 = nn.Linear(1000, 2)
+        self.model_name = "AdditionalModel"
 
     def forward(self, x):
         x = self.conv1(x)
         x = F.relu(x)
+        x = self.maxpool_1(x)
+        x = self.conv2(x)
+        # x = self.bnorm(x)
+        x = F.relu(x)
+        x = self.maxpool_2(x)
+        x = torch.flatten(x, 1)
+        x = self.fc1(x)
+        x = self.fc2(x)
+        # x = x.view((x.size(0),-1))
+        # output = F.log_softmax(x, dim = 1)
+        return x
+
+class OverfitModel(nn.Module):
+    def __init__(self):
+        super(OverfitModel, self).__init__()
+        self.model_name = 'OverfitModel'
+        # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
+        self.conv1 = nn.Conv2d(1, 4, 3, 1)
+        self.maxpool1 = nn.MaxPool2d(2,2)
+        self.conv2 = nn.Conv2d(4, 8, 3, 1)
+        self.maxpool2 = nn.MaxPool2d(2,2)
+        self.conv3 = nn.Conv2d(8, 16, 3, 1)
+        self.conv4 = nn.Conv2d(16, 16, 3, 1)
+        self.maxpool3 = nn.MaxPool2d(2,2)
+        # self.conv2 = nn.Conv2d(64, 64, 3, 1)
+        self.fc1 = nn.Linear(4096, 1000)
+        self.fc2 = nn.Linear(1000, 2)
+
+    def forward(self, x):
+        x = self.conv1(x)
+        x = F.relu(x)
+        x = self.maxpool1(x)
+
         x = self.conv2(x)
         x = F.relu(x)
-        x = self.maxpool_1(x)
+        x = self.maxpool2(x)
 
         x = self.conv3(x)
         x = F.relu(x)
         x = self.conv4(x)
         x = F.relu(x)
-        x = self.maxpool_2(x)
+        x = self.maxpool3(x)
         x = torch.flatten(x, 1)
-        # print(x.shape)
+
         x = self.fc1(x)
-        # x = x.view((x.size(0),-1))
-        # output = F.log_softmax(x, dim = 1)
+        x = self.fc2(x)
         return x
 
 #Preliminary Model of 2 Convolutional Layers
@@ -182,6 +216,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Covid")
 
     #Create model, optimizer and criterion
+    # covid model not good with OverfitModel
     model_covid = PreliminaryModel()
     model_covid.lr = lr
     optimizer2 = optim.Adam(model_covid.parameters(),lr=lr, weight_decay=weight_decay)
@@ -500,7 +535,7 @@ trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSa
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
 testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
 
-model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=5, lr=0.001, weight_decay=1e-4)
+model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=10, lr=0.001, weight_decay=1e-4)
 
 # model_infect = load("infected_OneModel.pt")
 # model_covid = load("covid_PreliminaryModel.pt")
