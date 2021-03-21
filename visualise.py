@@ -1,6 +1,23 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+from dataset import Lung_Train_Dataset, Lung_Test_Dataset
+
+def chart_dataset_sizes(dataset):
+    # Pie chart, where the slices will be ordered and plotted counter-clockwise:
+    labels = 'normal', 'non-covid', 'covid'
+    sizes = list(dataset.dataset_numbers.values())
+
+    fig1, ax1 = plt.subplots()
+    ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
+            startangle=90)
+    ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
+
+    ax1.set_title(f"Distribution of class labels for {dataset.dataset_type} dataset")
+
+    plt.savefig(f'piechart_{dataset.dataset_type}')
+
+
 def plot_curve(trainingloss, trainingacc, testloss, testacc,covid):
     #Plot the graphs
     plt.xlabel("Training Examples")
@@ -52,3 +69,10 @@ def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accur
     
     plt.tight_layout()
     plt.savefig('validation_display')
+
+# dataset_dir = './dataset'
+# ld_train = Lung_Train_Dataset(dataset_dir)
+# chart_dataset_sizes(ld_train)
+
+# ld_test = Lung_Test_Dataset(dataset_dir)
+# chart_dataset_sizes(ld_test)
