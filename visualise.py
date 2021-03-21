@@ -30,6 +30,8 @@ def plot_curve(trainingloss, trainingacc, testloss, testacc, model_name, covid):
     plt.plot(np.array(testloss),'g',label = "Test Loss")
     plt.plot(np.array(testacc),'b',label = "Test Accuracy") 
     plt.legend(loc='upper right', frameon=False)
+    plt.xlim(xmin=0)
+    plt.ylim(ymin=0, ymax=1)
     plt.plot()
     if covid:
         plt.savefig(f"images/covid_{model_name}")
