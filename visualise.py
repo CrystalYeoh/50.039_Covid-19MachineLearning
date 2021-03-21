@@ -21,7 +21,7 @@ def chart_dataset_sizes(dataset):
     plt.clf()
 
 
-def plot_curve(trainingloss, trainingacc, testloss, testacc,covid):
+def plot_curve(trainingloss, trainingacc, testloss, testacc, model_name, covid):
     #Plot the graphs
     plt.xlabel("Training Examples")
     plt.ylabel("Loss/Accuracy")
@@ -32,9 +32,9 @@ def plot_curve(trainingloss, trainingacc, testloss, testacc,covid):
     plt.legend(loc='upper right', frameon=False)
     plt.plot()
     if covid:
-        plt.savefig("covid")
+        plt.savefig(f"images/covid_{model_name}")
     else:
-        plt.savefig("infect")
+        plt.savefig(f"images/infect_{model_name}")
     plt.clf()
 
 def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accuracy):

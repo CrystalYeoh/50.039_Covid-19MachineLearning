@@ -67,10 +67,11 @@ def cal_mean_and_sd(loader):
 
     return fst_moment, torch.sqrt(snd_moment - fst_moment ** 2)
 
-def save(model, path):
+def save(model, path, e):
     checkpoint = {
                   'c_lr': model.lr,
                   'state_dict': model.state_dict(),
                   'model_name': model.model_name,
+                  'num_of_epochs': e,
                   }
     torch.save(checkpoint, path)

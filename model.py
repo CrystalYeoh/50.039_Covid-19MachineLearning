@@ -324,14 +324,14 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
 
         #Reset loss
         training_loss = 0
-    if covid:
-        save(model, "model/covid_" + model.model_name + ".pt")
-    else:
-        save(model, "model/infected_" + model.model_name + ".pt")
+        if covid:
+            save(model, "model/covid_" + model.model_name + ".pt", e)
+        else:
+            save(model, "model/infected_" + model.model_name + ".pt", e)
         
         model.train()
     #Visualise data after training is done
-    plot_curve(training_loss_list,training_acc_list,test_loss_list,test_acc_list,covid)
+    plot_curve(training_loss_list, training_acc_list, test_loss_list, test_acc_list, model.model_name, covid)
 
 def test_overall_model(model_infect, model_covid, validloader, criterion, threshold=0.5):
 
@@ -506,6 +506,8 @@ def load(path):
     model.lr = cp['c_lr']
     model.model_name = cp['model_name']
     model.load_state_dict(cp['state_dict'])
+
+    print(f"model loaded. Previously trained with {cp['num_of_epochs']}")
     
     return model
 
@@ -540,7 +542,7 @@ trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSa
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
 testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
 
-model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=10, lr=0.001, weight_decay=1e-4)
+model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=5, lr=0.001, weight_decay=1e-4)
 
 # model_infect = load("infected_OneModel.pt")
 # model_covid = load("covid_PreliminaryModel.pt")
