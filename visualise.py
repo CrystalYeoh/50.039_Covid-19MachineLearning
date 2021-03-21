@@ -18,6 +18,7 @@ def chart_dataset_sizes(dataset):
     ax1.set_title(f"Distribution of class labels for {dataset.dataset_type} dataset\nTotal of {sum(dataset.dataset_numbers.values())} images")
 
     plt.savefig(f'piechart_{dataset.dataset_type}')
+    plt.clf()
 
 
 def plot_curve(trainingloss, trainingacc, testloss, testacc,covid):
@@ -72,12 +73,12 @@ def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accur
     plt.tight_layout()
     plt.savefig('validation_display')
 
-dataset_dir = './dataset'
-ld_train = Lung_Train_Dataset(dataset_dir)
-chart_dataset_sizes(ld_train)
+# dataset_dir = './dataset'
+# ld_train = Lung_Train_Dataset(dataset_dir)
+# chart_dataset_sizes(ld_train)
 
-ld_test = Lung_Test_Dataset(dataset_dir)
-chart_dataset_sizes(ld_test)
+# ld_test = Lung_Test_Dataset(dataset_dir)
+# chart_dataset_sizes(ld_test)
 
-ld_val = Lung_Val_Dataset(dataset_dir)
-chart_dataset_sizes(ld_val)
+# ld_val = Lung_Val_Dataset(dataset_dir)
+# chart_dataset_sizes(ld_val)

@@ -47,7 +47,7 @@ def make_weight_losses(dataloader, covid):
 
     return torch.tensor([N/(N-positive_count), N/positive_count])
 
-# tensor([0.4824, 0.4824, 0.4824]) tensor([0.2363, 0.2363, 0.2363]) for Lung_Train w/o covid
+# tensor([0.4824, 0.4824, 0.4824]) tensor([0.2363, 0.2363, 0.2363]) for Lung_Train
 def cal_mean_and_sd(loader):
     cnt = 0
     fst_moment = torch.empty(3)
@@ -58,8 +58,8 @@ def cal_mean_and_sd(loader):
         
         b, c, h, w = data.shape
         nb_pixels = b * h * w
-        sum_ = torch.sum(data, dim=[0, 2, 3])
-        sum_of_square = torch.sum(data ** 2, dim=[0, 2, 3])
+        sum_ = torch.sum(data)
+        sum_of_square = torch.sum(data ** 2)
         fst_moment = (cnt * fst_moment + sum_) / (cnt + nb_pixels)
         snd_moment = (cnt * snd_moment + sum_of_square) / (cnt + nb_pixels)
 

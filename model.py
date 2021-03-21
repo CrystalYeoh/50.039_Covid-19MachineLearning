@@ -200,7 +200,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Infected")
 
     #Create model, optimizer and criterion
-    model_infect = OneModel()
+    model_infect = PreliminaryModel()
     model_infect.lr = lr
     optimizer = optim.Adam(model_infect.parameters(),lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss(make_weight_losses(infect_trainloader, False))
@@ -512,26 +512,31 @@ def load(path):
 dataset_dir = './dataset'
 
 train_transforms = transforms.Compose([
-    transforms.ColorJitter(0.25,0.25,0.25),
+    # transforms.ColorJitter(0.25,0.25,0.25),
     transforms.RandomRotation(15),
     transforms.RandomAffine(15, scale=(0.9,1.1)),
-    transforms.ToTensor(),
-    transforms.Normalize((0.4824,), (0.2363,)),
-    transforms.ToPILImage(),
+    # transforms.ToTensor(),
+    # transforms.Normalize((0.4824,), (0.2363,)),
+    # transforms.ToPILImage(),
 ])
-img_transforms = transforms.Compose([
-    transforms.ToTensor(),
-    transforms.Normalize((0.4824,), (0.2363,)),
-    transforms.ToPILImage(),
-])
+# img_transforms = transforms.Compose([
+#     transforms.ToTensor(),
+#     transforms.Normalize((0.4824,), (0.2363,)),
+#     transforms.ToPILImage(),
+# ])
+
+# train_transforms=None
+img_transforms=None
 
 ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
 trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+# trainloader = DataLoader(ld_train, batch_size = 64, shuffle=True)
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
 testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
 
 ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
 trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+# trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle=True)
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
 testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
 
