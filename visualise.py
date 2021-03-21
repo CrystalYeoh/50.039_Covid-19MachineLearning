@@ -25,7 +25,7 @@ def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, metri
     accuracy, fbetas, precisions, recalls = metrics
 
     plt.figure(figsize = (10, 10))
-    plt.suptitle('Validation set pictures, with predicted and ground truth labels.\nAccuracy: {:.3f}'.format(accuracy))
+    plt.suptitle('Validation set pictures, with predicted and ground truth labels.\nCovid F2-score: {:.3f}\nAccuracy: {:.3f}\n'.format(fbetas[2], accuracy))
 
     images = []
     for i in range(len(dataset)):

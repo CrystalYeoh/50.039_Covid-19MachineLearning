@@ -329,10 +329,6 @@ def test_overall_model(model_infect, model_covid, validloader, threshold=0.5, be
         model_covid = model_covid.cuda()
 
     #Initiating variables for loss and fbeta scores
-    # beta2 = beta**2
-    # true_positives = 0
-    # predicted_positives = 0
-    # target_positives = 0
 
     equal = 0
     N = 0
