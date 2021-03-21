@@ -47,7 +47,7 @@ Mandatory args:
 Typically the path to where the saved model is `model/{infected/covid}_{model_name}.pt`.
 
 Optional args:
-- dataset: whether to train it on the validation set or train dataset. If trained on the validation dataset, it will also visualise the 25 pages. 
+- dataset: whether to train it on the validation set or train dataset. If trained on the validation dataset, it will also visualise the 25 images. 
 
 ## Final Model
 To view the results for the final train model, you can run:
