@@ -325,9 +325,9 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
         #Reset loss
         training_loss = 0
     if covid:
-        save(model, "covid_" + model.model_name + ".pt")
+        save(model, "model/covid_" + model.model_name + ".pt")
     else:
-        save(model, "infected_" + model.model_name + ".pt")
+        save(model, "model/infected_" + model.model_name + ".pt")
         
         model.train()
     #Visualise data after training is done
@@ -548,8 +548,8 @@ model_infect, model_covid = train(trainloader, testloader, trainloader_c, testlo
 ld_valid = Lung_Val_Dataset(dataset_dir,covid=None, transform=img_transforms)
 validloader = DataLoader(ld_valid,batch_size=64,shuffle=False)
 images, target_i, target_c, pred_i, pred_c, acc = test_overall_model(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
-ld_valid_display = Lung_Val_Dataset(dataset_dir, covid=None)
-visualise_val_predictions(ld_valid_display, target_i, target_c, pred_i, pred_c, acc)
+# ld_valid_display = Lung_Val_Dataset(dataset_dir, covid=None)
+# visualise_val_predictions(ld_valid_display, target_i, target_c, pred_i, pred_c, acc)
 
 # ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
 # testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
