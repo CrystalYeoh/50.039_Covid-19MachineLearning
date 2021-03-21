@@ -18,7 +18,7 @@ model_covid = load(args.covid_checkpoint)
 
 if args.dataset == 'val':
     ld = Lung_Val_Dataset(args.data_dir, covid = None)
-    loader = DataLoader(ld, batch_size = 64, shuffle=True)
+    loader = DataLoader(ld, batch_size = 64, shuffle=False)
     ti, tc, pi, pc, metrics = test_overall_model(model_infect, model_covid, loader)
     visualise_val_predictions(ld, ti, tc, pi, pc, metrics)
     print('You can refer to the visualisation of the validation dataset at "validation_display.png"')
