@@ -54,8 +54,7 @@ class AdditionalModel(nn.Module):
         self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_2 = nn.MaxPool2d(2,2)
         # self.bnorm = nn.BatchNorm2d(4)
-        self.fc1 = nn.Linear(5184, 1000)
-        self.fc2 = nn.Linear(1000, 2)
+        self.fc1 = nn.Linear(5184, 2)
         self.model_name = "AdditionalModel"
 
     def forward(self, x):
@@ -73,21 +72,19 @@ class AdditionalModel(nn.Module):
         # output = F.log_softmax(x, dim = 1)
         return x
 
-class OverfitModel(nn.Module):
+class ThreeModel(nn.Module):
     def __init__(self):
-        super(OverfitModel, self).__init__()
-        self.model_name = 'OverfitModel'
+        super(ThreeModel, self).__init__()
+        self.model_name = 'ThreeModel'
         # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
         self.conv1 = nn.Conv2d(1, 4, 3, 1)
         self.maxpool1 = nn.MaxPool2d(2,2)
-        self.conv2 = nn.Conv2d(4, 8, 3, 1)
+        self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool2 = nn.MaxPool2d(2,2)
-        self.conv3 = nn.Conv2d(8, 16, 3, 1)
-        self.conv4 = nn.Conv2d(16, 16, 3, 1)
+        self.conv3 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool3 = nn.MaxPool2d(2,2)
         # self.conv2 = nn.Conv2d(64, 64, 3, 1)
-        self.fc1 = nn.Linear(4096, 1000)
-        self.fc2 = nn.Linear(1000, 2)
+        self.fc1 = nn.Linear(1156, 2)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -100,13 +97,10 @@ class OverfitModel(nn.Module):
 
         x = self.conv3(x)
         x = F.relu(x)
-        x = self.conv4(x)
-        x = F.relu(x)
         x = self.maxpool3(x)
         x = torch.flatten(x, 1)
 
         x = self.fc1(x)
-        x = self.fc2(x)
         return x
 
 #Preliminary Model of 2 Convolutional Layers
@@ -206,7 +200,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     criterion = nn.CrossEntropyLoss()
     
     #Train the model
-    train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
+    train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs, lr=lr)
 
     #Freeze the parameters in the infection model to train the covid model
     for params in model_infect.parameters():
@@ -216,19 +210,18 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Covid")
 
     #Create model, optimizer and criterion
-    # covid model not good with OverfitModel
     model_covid = PreliminaryModel()
     model_covid.lr = lr
     optimizer2 = optim.Adam(model_covid.parameters(),lr=lr, weight_decay=weight_decay)
     criterion2 = nn.CrossEntropyLoss()
 
-    train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True)
+    train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True, lr=lr)
 
     return model_infect, model_covid
 
 # determine default value of beta
 # default is 2 to favour recall to minimize false negatives
-def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None,  threshold=0.5, beta=2, eps=1e-9):
+def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None,  threshold=0.5, beta=2, eps=1e-9, lr=0):
 
     #Use GPU
     if torch.cuda.is_available():
@@ -322,12 +315,14 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
         test_loss_list.append(test_loss/len(testloader))
         test_acc_list.append(test_fbeta.cpu())
 
+        graph_lists = [training_loss_list, training_acc_list, test_loss_list, test_acc_list]
+
         #Reset loss
         training_loss = 0
         if covid:
-            save(model, "model/covid_" + model.model_name + ".pt", e)
+            save(model, "model/covid_" + model.model_name + ".pt", e, graph_lists)
         else:
-            save(model, "model/infected_" + model.model_name + ".pt", e)
+            save(model, "model/infected_" + model.model_name + ".pt", e, graph_lists)
         
         model.train()
     #Visualise data after training is done
@@ -529,18 +524,19 @@ train_transforms = transforms.Compose([
 
 # train_transforms=None
 img_transforms=None
+bs=64
 
 ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
-trainloader = DataLoader(ld_train, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+trainloader = DataLoader(ld_train, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
 # trainloader = DataLoader(ld_train, batch_size = 64, shuffle=True)
 ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
-testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
+testloader = DataLoader(ld_test, batch_size = bs, shuffle=True)
 
 ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
-trainloader_c = DataLoader(ld_train_c, batch_size = 64, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+trainloader_c = DataLoader(ld_train_c, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
 # trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle=True)
 ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
-testloader_c = DataLoader(ld_test_c, batch_size = 64, shuffle=True)
+testloader_c = DataLoader(ld_test_c, batch_size = bs, shuffle=True)
 
 model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=5, lr=0.001, weight_decay=1e-4)
 
@@ -548,7 +544,7 @@ model_infect, model_covid = train(trainloader, testloader, trainloader_c, testlo
 # model_covid = load("covid_PreliminaryModel.pt")
 
 ld_valid = Lung_Val_Dataset(dataset_dir,covid=None, transform=img_transforms)
-validloader = DataLoader(ld_valid,batch_size=64,shuffle=False)
+validloader = DataLoader(ld_valid,batch_size=bs,shuffle=False)
 images, target_i, target_c, pred_i, pred_c, acc = test_overall_model(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
 # ld_valid_display = Lung_Val_Dataset(dataset_dir, covid=None)
 # visualise_val_predictions(ld_valid_display, target_i, target_c, pred_i, pred_c, acc)

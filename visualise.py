@@ -24,19 +24,19 @@ def chart_dataset_sizes(dataset):
 def plot_curve(trainingloss, trainingacc, testloss, testacc, model_name, covid):
     #Plot the graphs
     plt.xlabel("Training Examples")
-    plt.ylabel("Loss/Accuracy")
+    plt.ylabel("Loss/F2-score")
     plt.plot(np.array(trainingloss),'r',label="Training Loss")
-    plt.plot(np.array(trainingacc),'orange',label="Training Accuracy")
+    plt.plot(np.array(trainingacc),'orange',label="Training F2-score")
     plt.plot(np.array(testloss),'g',label = "Test Loss")
-    plt.plot(np.array(testacc),'b',label = "Test Accuracy") 
+    plt.plot(np.array(testacc),'b',label = "Test F2-score") 
     plt.legend(loc='upper right', frameon=False)
     plt.xlim(xmin=0)
     plt.ylim(ymin=0, ymax=1)
     plt.plot()
     if covid:
-        plt.savefig(f"images/covid_{model_name}")
+        plt.savefig(f"images/covid_{model_name}.png")
     else:
-        plt.savefig(f"images/infect_{model_name}")
+        plt.savefig(f"images/infect_{model_name}.png")
     plt.clf()
 
 def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accuracy):
