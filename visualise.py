@@ -9,8 +9,10 @@ def chart_dataset_sizes(dataset):
     sizes = list(dataset.dataset_numbers.values())
 
     fig1, ax1 = plt.subplots()
-    ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
+    pathces, texts, autotexts = ax1.pie(sizes, labels=labels, autopct='%1.1f%%',
             startangle=90)
+    [_.set_fontsize(15) for _ in texts]
+    [_.set_fontsize(15) for _ in autotexts]
     ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
 
     ax1.set_title(f"Distribution of class labels for {dataset.dataset_type} dataset")
@@ -70,9 +72,12 @@ def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accur
     plt.tight_layout()
     plt.savefig('validation_display')
 
-# dataset_dir = './dataset'
-# ld_train = Lung_Train_Dataset(dataset_dir)
-# chart_dataset_sizes(ld_train)
+dataset_dir = './dataset'
+ld_train = Lung_Train_Dataset(dataset_dir)
+chart_dataset_sizes(ld_train)
 
-# ld_test = Lung_Test_Dataset(dataset_dir)
-# chart_dataset_sizes(ld_test)
+ld_test = Lung_Test_Dataset(dataset_dir)
+chart_dataset_sizes(ld_test)
+
+ld_val = Lung_Val_Dataset(dataset_dir)
+chart_dataset_sizes(ld_val)
