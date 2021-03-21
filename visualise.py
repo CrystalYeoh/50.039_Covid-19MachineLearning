@@ -39,7 +39,9 @@ def plot_curve(trainingloss, trainingacc, testloss, testacc, model_name, covid):
         plt.savefig(f"images/infect_{model_name}.png")
     plt.clf()
 
-def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, accuracy):
+def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, metrics):
+    accuracy, fbetas, precisions, recalls = metrics
+
     plt.figure(figsize = (10, 10))
     plt.suptitle('Validation set pictures, with predicted and ground truth labels.\nAccuracy: {:.3f}'.format(accuracy))
 

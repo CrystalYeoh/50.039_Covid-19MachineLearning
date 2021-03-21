@@ -328,7 +328,7 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
     #Visualise data after training is done
     plot_curve(training_loss_list, training_acc_list, test_loss_list, test_acc_list, model.model_name, covid)
 
-def test_overall_model(model_infect, model_covid, validloader, criterion, threshold=0.5):
+def test_overall_model(model_infect, model_covid, validloader, criterion, threshold=0.5, beta=2):
 
     if torch.cuda.is_available():
         model_infect = model_infect.cuda()
@@ -340,11 +340,15 @@ def test_overall_model(model_infect, model_covid, validloader, criterion, thresh
     # predicted_positives = 0
     # target_positives = 0
 
-    equal_i = 0
-    equal_c = 0
     equal = 0
     N = 0
     all_images = torch.tensor([]).cuda()
+    # rows will be gnd_truth, cols will be pred
+    equality_map = [
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+    ]
     
     #Loop through the data in batches
     for batch_idx, (images, target_i, target_c) in enumerate(validloader): 
@@ -365,8 +369,6 @@ def test_overall_model(model_infect, model_covid, validloader, criterion, thresh
         ps = torch.exp(output)
         predict_covid = torch.ge(output[:,1], threshold)
 
-        equal_i += (target_i == predict_infect).sum()
-        equal_c += (target_c == predict_covid).sum()
         N += images.shape[0]
         all_images = torch.cat([all_images, images])
 
@@ -377,33 +379,51 @@ def test_overall_model(model_infect, model_covid, validloader, criterion, thresh
             pred_c = predict_covid[i].cpu().numpy()
 
             if true_i == 0:
-                ground_truth = 'normal'
+                ground_truth = 0
             else:
                 if true_c == 0:
-                    ground_truth = 'non-covid'
+                    ground_truth = 1
                 else:
-                    ground_truth = 'covid'
+                    ground_truth = 2
             
             if not pred_i:
-                prediction = 'normal'
+                prediction = 0
             else:
                 if not pred_c:
-                    prediction = 'non-covid'
+                    prediction = 1
                 else:
-                    prediction = 'covid'
+                    prediction = 2
             
-            if ground_truth == prediction:
-                equal += 1
-            # print("Validation",i)
-            # print("True Infected Label:", true_i)
-            # print("Predicted Infected Label:",pred_i)
-            # print("True Covid Label:", true_c)
-            # print("Predicted Covid Label", pred_c)
-            # print()
-    accuracy = equal/N
-    print(f"Infected label Accuracy: {equal_i/N}\nCovid label Accuracy: {equal_c/N}")
-    print(f"Overall correctly predicted labels: {accuracy}")
-    return all_images, target_i, target_c, predict_infect, predict_covid, accuracy
+            equality_map[ground_truth][prediction] += 1
+
+    equality_map = np.asarray(equality_map)
+    accuracy = 0
+    beta2 = beta**2
+    precisions = []
+    recalls = []
+    fbetas = []
+    eps = 1e-8
+
+    for c in range(3):
+        accuracy += equality_map[c, c]
+
+        true_positives = equality_map[c, c]
+        predicted_positives = sum(equality_map[:, c])
+        target_positives = sum(equality_map[c, :])
+        precision = true_positives/(predicted_positives+eps)
+        recall = true_positives/(target_positives+eps)
+        fbeta = (1+beta2)*precision*recall/(beta2*precision+recall+eps)
+
+        precisions.append(precision)
+        recalls.append(recall)
+        fbetas.append(fbeta)
+
+    accuracy = accuracy/N
+    metrics = (accuracy, fbetas, precisions, recalls)
+
+    print("Overall correctly predicted labels: {:.3f}".format(accuracy))
+    print("F2-scores for: normal {:.3f}, non-covid {:.3f}, covid {:.3f}".format(fbetas[0], fbetas[1], fbetas[2]))
+    return all_images, target_i, target_c, predict_infect, predict_covid, metrics
 
     #     true_positives += (predicted_labels * target).sum()
     #     predicted_positives += predicted_labels.sum()
@@ -492,6 +512,12 @@ def load(path):
         model = PreliminaryModel()
     elif model_name == "OneModel":
         model = OneModel()
+    elif model_name == "ThreeModel":
+        model = ThreeModel()
+    elif model_name == "HighPass":
+        model = HighPassModel()
+    elif model_name == "LowPass":
+        model = LowPassModel()
     
     # Freeze parameters that we don't need to re-train 
     for param in model.parameters():
@@ -502,7 +528,7 @@ def load(path):
     model.model_name = cp['model_name']
     model.load_state_dict(cp['state_dict'])
 
-    print(f"model loaded. Previously trained with {cp['num_of_epochs']}")
+    # print(f"model loaded. Previously trained with {cp['num_of_epochs']}")
     
     return model
 
@@ -526,29 +552,46 @@ train_transforms = transforms.Compose([
 img_transforms=None
 bs=64
 
-ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
-trainloader = DataLoader(ld_train, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
-# trainloader = DataLoader(ld_train, batch_size = 64, shuffle=True)
-ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
-testloader = DataLoader(ld_test, batch_size = bs, shuffle=True)
+# ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
+# trainloader = DataLoader(ld_train, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+# # trainloader = DataLoader(ld_train, batch_size = 64, shuffle=True)
+# ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
+# testloader = DataLoader(ld_test, batch_size = bs, shuffle=True)
 
-ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
-trainloader_c = DataLoader(ld_train_c, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
-# trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle=True)
-ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
-testloader_c = DataLoader(ld_test_c, batch_size = bs, shuffle=True)
+# ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
+# trainloader_c = DataLoader(ld_train_c, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+# # trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle=True)
+# ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
+# testloader_c = DataLoader(ld_test_c, batch_size = bs, shuffle=True)
 
-model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=5, lr=0.001, weight_decay=1e-4)
+# model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=5, lr=0.001, weight_decay=1e-4)
 
 # model_infect = load("infected_OneModel.pt")
 # model_covid = load("covid_PreliminaryModel.pt")
 
-ld_valid = Lung_Val_Dataset(dataset_dir,covid=None, transform=img_transforms)
-validloader = DataLoader(ld_valid,batch_size=bs,shuffle=False)
-images, target_i, target_c, pred_i, pred_c, acc = test_overall_model(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
+# ld_valid = Lung_Val_Dataset(dataset_dir,covid=None, transform=img_transforms)
+# validloader = DataLoader(ld_valid,batch_size=bs,shuffle=False)
+# images, target_i, target_c, pred_i, pred_c, acc = test_overall_model(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
 # ld_valid_display = Lung_Val_Dataset(dataset_dir, covid=None)
 # visualise_val_predictions(ld_valid_display, target_i, target_c, pred_i, pred_c, acc)
 
-# ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-# testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
-# test(model_infect,model_covid,testloader,nn.CrossEntropyLoss)
+model_names = [
+    "PreliminaryModel",
+    "LowPass",
+    "HighPass",
+    "OneModel",
+    "ThreeModel",
+]
+
+ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
+testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
+
+for inf in model_names:
+    for cov in model_names:
+        print()
+        print("-----------------------------------")
+        print(f"Testing for {inf} infectmodel and {cov} covid model\n-----------------------------------")
+
+        model_infect = load(f"model/infected_{inf}.pt")
+        model_covid = load(f"model/covid_{cov}.pt")
+        test_overall_model(model_infect, model_covid, testloader, nn.CrossEntropyLoss)
