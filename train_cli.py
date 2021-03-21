@@ -11,7 +11,7 @@ parser.add_argument("infect_model", help="set infect model")
 parser.add_argument("covid_model", help="set covid model")
 parser.add_argument("--batch_size", type=int, default=64, help="set batch size")
 parser.add_argument("--epochs", type=int, default=5, help="set number of epochs to run")
-parser.add_argument("--lr", type=int, default=0.001, help="set learning rate")
+parser.add_argument("--lr", type = float,default=0.001, help="set learning rate")
 
 args = parser.parse_args()
 

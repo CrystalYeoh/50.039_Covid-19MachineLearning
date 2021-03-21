@@ -14,7 +14,7 @@ parser.add_argument("--dataset", default='val', help="set to predict on test or 
 args = parser.parse_args()
 
 model_infect = load(args.infect_checkpoint)
-model_covid = load(args.infect_checkpoint)
+model_covid = load(args.covid_checkpoint)
 
 if args.dataset == 'val':
     ld = Lung_Val_Dataset(args.data_dir, covid = None)
