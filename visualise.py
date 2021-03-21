@@ -15,7 +15,7 @@ def chart_dataset_sizes(dataset):
     [_.set_fontsize(15) for _ in autotexts]
     ax1.axis('equal')  # Equal aspect ratio ensures that pie is drawn as a circle.
 
-    ax1.set_title(f"Distribution of class labels for {dataset.dataset_type} dataset")
+    ax1.set_title(f"Distribution of class labels for {dataset.dataset_type} dataset\nTotal of {sum(dataset.dataset_numbers.values())} images")
 
     plt.savefig(f'piechart_{dataset.dataset_type}')
 
