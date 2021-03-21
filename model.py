@@ -203,7 +203,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     model_infect = PreliminaryModel()
     model_infect.lr = lr
     optimizer = optim.Adam(model_infect.parameters(),lr=lr, weight_decay=weight_decay)
-    criterion = nn.CrossEntropyLoss(make_weight_losses(infect_trainloader, False))
+    criterion = nn.CrossEntropyLoss()
     
     #Train the model
     train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
@@ -220,7 +220,7 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     model_covid = PreliminaryModel()
     model_covid.lr = lr
     optimizer2 = optim.Adam(model_covid.parameters(),lr=lr, weight_decay=weight_decay)
-    criterion2 = nn.CrossEntropyLoss(make_weight_losses(covid_trainloader, True))
+    criterion2 = nn.CrossEntropyLoss()
 
     train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True)
 
