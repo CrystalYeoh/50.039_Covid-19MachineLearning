@@ -4,7 +4,7 @@ from torch.utils.data import DataLoader
 import numpy as np
 import matplotlib.pyplot as plt
 
-from dataset import Lung_Train_Dataset
+# from dataset import Lung_Train_Dataset
 
 def make_balanced_weights(dataset):
     covid = dataset.covid

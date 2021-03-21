@@ -1,7 +1,7 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
-from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
+# from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
 
 def chart_dataset_sizes(dataset):
     # Pie chart, where the slices will be ordered and plotted counter-clockwise:
@@ -20,24 +20,6 @@ def chart_dataset_sizes(dataset):
     plt.savefig(f'piechart_{dataset.dataset_type}')
     plt.clf()
 
-
-def plot_curve(trainingloss, trainingacc, testloss, testacc, model_name, covid):
-    #Plot the graphs
-    plt.xlabel("Training Examples")
-    plt.ylabel("Loss/F2-score")
-    plt.plot(np.array(trainingloss),'r',label="Training Loss")
-    plt.plot(np.array(trainingacc),'orange',label="Training F2-score")
-    plt.plot(np.array(testloss),'g',label = "Test Loss")
-    plt.plot(np.array(testacc),'b',label = "Test F2-score") 
-    plt.legend(loc='upper right', frameon=False)
-    plt.xlim(xmin=0)
-    plt.ylim(ymin=0, ymax=1)
-    plt.plot()
-    if covid:
-        plt.savefig(f"images/covid_{model_name}.png")
-    else:
-        plt.savefig(f"images/infect_{model_name}.png")
-    plt.clf()
 
 def visualise_val_predictions(dataset, target_i, target_c, pred_i, pred_c, metrics):
     accuracy, fbetas, precisions, recalls = metrics

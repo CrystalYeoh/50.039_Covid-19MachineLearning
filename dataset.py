@@ -270,7 +270,7 @@ class Lung_Test_Dataset(Dataset):
         with open(path_to_file, 'rb') as f:
             img = Image.open(f)
             if self.transform:
-              img = self.transform(img)
+                img = self.transform(img)
             im = np.asarray(img)/255
         f.close()
         return im

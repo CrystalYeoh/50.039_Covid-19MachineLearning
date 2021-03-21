@@ -15,7 +15,6 @@ import matplotlib.pyplot as plt
 
 from dataset import Lung_Train_Dataset, Lung_Test_Dataset, Lung_Val_Dataset
 from utils import make_balanced_weights, make_weight_losses, save
-from visualise import plot_curve, visualise_val_predictions
 
 #Preliminary Model of 2 Convolutional Layers
 class PreliminaryModel(nn.Module):
@@ -26,7 +25,6 @@ class PreliminaryModel(nn.Module):
         self.maxpool_1 = nn.MaxPool2d(2,2)
         self.conv2 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool_2 = nn.MaxPool2d(2,2)
-        # self.bnorm = nn.BatchNorm2d(4)
         self.fc1 = nn.Linear(5184, 2)
         self.model_name = "PreliminaryModel"
 
@@ -35,41 +33,11 @@ class PreliminaryModel(nn.Module):
         x = F.relu(x)
         x = self.maxpool_1(x)
         x = self.conv2(x)
-        # x = self.bnorm(x)
+
         x = F.relu(x)
         x = self.maxpool_2(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        # x = x.view((x.size(0),-1))
-        # output = F.log_softmax(x, dim = 1)
-        return x
-
-# Additional fc layer for classification
-class AdditionalModel(nn.Module):
-    def __init__(self):
-        super(AdditionalModel, self).__init__()
-        # Conv2D: 1 input channel, 8 output channels, 3 by 3 kernel, stride of 1.
-        self.conv1 = nn.Conv2d(1, 4, 3, 1)
-        self.maxpool_1 = nn.MaxPool2d(2,2)
-        self.conv2 = nn.Conv2d(4, 4, 3, 1)
-        self.maxpool_2 = nn.MaxPool2d(2,2)
-        # self.bnorm = nn.BatchNorm2d(4)
-        self.fc1 = nn.Linear(5184, 2)
-        self.model_name = "AdditionalModel"
-
-    def forward(self, x):
-        x = self.conv1(x)
-        x = F.relu(x)
-        x = self.maxpool_1(x)
-        x = self.conv2(x)
-        # x = self.bnorm(x)
-        x = F.relu(x)
-        x = self.maxpool_2(x)
-        x = torch.flatten(x, 1)
-        x = self.fc1(x)
-        x = self.fc2(x)
-        # x = x.view((x.size(0),-1))
-        # output = F.log_softmax(x, dim = 1)
         return x
 
 class ThreeModel(nn.Module):
@@ -83,7 +51,6 @@ class ThreeModel(nn.Module):
         self.maxpool2 = nn.MaxPool2d(2,2)
         self.conv3 = nn.Conv2d(4, 4, 3, 1)
         self.maxpool3 = nn.MaxPool2d(2,2)
-        # self.conv2 = nn.Conv2d(64, 64, 3, 1)
         self.fc1 = nn.Linear(1156, 2)
 
     def forward(self, x):
@@ -118,10 +85,7 @@ class OneModel(nn.Module):
         x = F.relu(x)
         x = self.maxpool_1(x)
         x = torch.flatten(x, 1)
-        # print(x.shape)
         x = self.fc1(x)
-        # x = x.view((x.size(0),-1))
-        # output = F.log_softmax(x, dim = 1)
         return x
 
 #Low Pass filter before Preliminary model
@@ -153,8 +117,6 @@ class LowPassModel(nn.Module):
         x = self.maxpool_2(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        # x = x.view((x.size(0),-1))
-        # output = F.log_softmax(x, dim = 1)
         return x
 
 #High Pass filter before Preliminary model
@@ -184,23 +146,38 @@ class HighPassModel(nn.Module):
         x = self.maxpool_2(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        # x = x.view((x.size(0),-1))
-        # output = F.log_softmax(x, dim = 1)
         return x
 
-def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs, lr=0.001, weight_decay=0):
+def select_model(model_name):
+    model_name = model_name.lower()
+
+    if model_name == "PreliminaryModel".lower():
+        model = PreliminaryModel()
+    elif model_name == "OneModel".lower():
+        model = OneModel()
+    elif model_name == "ThreeModel".lower():
+        model = ThreeModel()
+    elif model_name == "HighPass".lower():
+        model = HighPassModel()
+    elif model_name == "LowPass".lower():
+        model = LowPassModel()
+    else:
+        raise Exception("Please choose a predefined model")
+    return model
+
+def train(infect_model, covid_model, infect_trainloader, infect_testloader, covid_trainloader, covid_testloader, epochs, lr=0.001, weight_decay=0):
 
     #We first train on infected
     print("Training Binary Classifier model for Infected")
 
     #Create model, optimizer and criterion
-    model_infect = PreliminaryModel()
+    model_infect = select_model(infect_model)
     model_infect.lr = lr
     optimizer = optim.Adam(model_infect.parameters(),lr=lr, weight_decay=weight_decay)
     criterion = nn.CrossEntropyLoss()
-    
+
     #Train the model
-    train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs, lr=lr)
+    train_model(model_infect, optimizer, criterion, infect_trainloader, infect_testloader, epochs)
 
     #Freeze the parameters in the infection model to train the covid model
     for params in model_infect.parameters():
@@ -210,18 +187,35 @@ def train(infect_trainloader, infect_testloader, covid_trainloader, covid_testlo
     print("Training Binary Classifier model for Covid")
 
     #Create model, optimizer and criterion
-    model_covid = PreliminaryModel()
+    model_covid = select_model(covid_model)
     model_covid.lr = lr
     optimizer2 = optim.Adam(model_covid.parameters(),lr=lr, weight_decay=weight_decay)
     criterion2 = nn.CrossEntropyLoss()
 
-    train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True, lr=lr)
+    train_model(model_covid, optimizer2, criterion2, covid_trainloader, covid_testloader, epochs, covid = True)
 
     return model_infect, model_covid
 
-# determine default value of beta
+def plot_curve(trainingloss, trainingacc, testloss, testacc, model_name, covid):
+    #Plot the graphs
+    plt.xlabel("Training Examples")
+    plt.ylabel("Loss/F2-score")
+    plt.plot(np.array(trainingloss),'r',label="Training Loss")
+    plt.plot(np.array(trainingacc),'orange',label="Training F2-score")
+    plt.plot(np.array(testloss),'g',label = "Test Loss")
+    plt.plot(np.array(testacc),'b',label = "Test F2-score") 
+    plt.legend(loc='upper right', frameon=False)
+    plt.xlim(xmin=0)
+    plt.ylim(ymin=0, ymax=1)
+    plt.plot()
+    if covid:
+        plt.savefig(f"images/covid_{model_name}.png")
+    else:
+        plt.savefig(f"images/infect_{model_name}.png")
+    plt.clf()
+
 # default is 2 to favour recall to minimize false negatives
-def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None,  threshold=0.5, beta=2, eps=1e-9, lr=0):
+def train_model(model, optimizer, criterion, trainloader, testloader, epochs, covid=None,  threshold=0.5, beta=2, eps=1e-9):
 
     #Use GPU
     if torch.cuda.is_available():
@@ -328,7 +322,7 @@ def train_model(model, optimizer, criterion, trainloader, testloader, epochs, co
     #Visualise data after training is done
     plot_curve(training_loss_list, training_acc_list, test_loss_list, test_acc_list, model.model_name, covid)
 
-def test_overall_model(model_infect, model_covid, validloader, criterion, threshold=0.5, beta=2):
+def test_overall_model(model_infect, model_covid, validloader, threshold=0.5, beta=2):
 
     if torch.cuda.is_available():
         model_infect = model_infect.cuda()
@@ -423,25 +417,7 @@ def test_overall_model(model_infect, model_covid, validloader, criterion, thresh
 
     print("Overall correctly predicted labels: {:.3f}".format(accuracy))
     print("F2-scores for: normal {:.3f}, non-covid {:.3f}, covid {:.3f}".format(fbetas[0], fbetas[1], fbetas[2]))
-    return all_images, target_i, target_c, predict_infect, predict_covid, metrics
-
-    #     true_positives += (predicted_labels * target).sum()
-    #     predicted_positives += predicted_labels.sum()
-    #     target_positives += target.sum()
-    
-    # #Calculate fbeta
-
-    # # precision = TruePositive / (TruePositive + FalsePositive)
-    # precision = true_positives.div(predicted_positives.add(eps))
-    # # recall = TruePositive / (TruePositive + FalseNegative)
-    # recall = true_positives.div(target_positives.add(eps))
-    
-    # fbeta = torch.mean((precision*recall).
-    #     mul(1 + beta2)
-    #     .div(precision.mul(beta2) + recall + eps)
-    # )
-    
-    # return test_loss, fbeta
+    return target_i, target_c, predict_infect, predict_covid, metrics
 
 def validation(model, testloader, criterion, covid = None, threshold=0.5, beta=1, eps=1e-9):
 
@@ -508,16 +484,7 @@ def load(path):
     
     # Import pre-trained NN model 
     model_name = cp['model_name']
-    if model_name == "PreliminaryModel":
-        model = PreliminaryModel()
-    elif model_name == "OneModel":
-        model = OneModel()
-    elif model_name == "ThreeModel":
-        model = ThreeModel()
-    elif model_name == "HighPass":
-        model = HighPassModel()
-    elif model_name == "LowPass":
-        model = LowPassModel()
+    model = select_model(model_name)
     
     # Freeze parameters that we don't need to re-train 
     for param in model.parameters():
@@ -532,66 +499,20 @@ def load(path):
     
     return model
 
-dataset_dir = './dataset'
+def pretrain(dataset_dir, batch_size):
+    train_transforms = transforms.Compose([
+        transforms.RandomRotation(15),
+        transforms.RandomAffine(15, scale=(0.9,1.1)),
+    ])
+    ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
+    trainloader = DataLoader(ld_train, batch_size = batch_size, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
+    ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=None)
+    testloader = DataLoader(ld_test, batch_size = batch_size, shuffle=True)
 
-train_transforms = transforms.Compose([
-    # transforms.ColorJitter(0.25,0.25,0.25),
-    transforms.RandomRotation(15),
-    transforms.RandomAffine(15, scale=(0.9,1.1)),
-    # transforms.ToTensor(),
-    # transforms.Normalize((0.4824,), (0.2363,)),
-    # transforms.ToPILImage(),
-])
-# img_transforms = transforms.Compose([
-#     transforms.ToTensor(),
-#     transforms.Normalize((0.4824,), (0.2363,)),
-#     transforms.ToPILImage(),
-# ])
+    ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
+    trainloader_c = DataLoader(ld_train_c, batch_size = batch_size, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
+    ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=None)
+    testloader_c = DataLoader(ld_test_c, batch_size = batch_size, shuffle=True)
 
-# train_transforms=None
-img_transforms=None
-bs=64
+    return trainloader, testloader, trainloader_c, testloader_c
 
-# ld_train = Lung_Train_Dataset(dataset_dir, covid = None, transform=train_transforms)
-# trainloader = DataLoader(ld_train, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train), len(ld_train)))
-# # trainloader = DataLoader(ld_train, batch_size = 64, shuffle=True)
-# ld_test = Lung_Test_Dataset(dataset_dir, covid = None, transform=img_transforms)
-# testloader = DataLoader(ld_test, batch_size = bs, shuffle=True)
-
-# ld_train_c = Lung_Train_Dataset(dataset_dir, covid = True, transform=train_transforms)
-# trainloader_c = DataLoader(ld_train_c, batch_size = bs, sampler=WeightedRandomSampler(make_balanced_weights(ld_train_c), len(ld_train_c)))
-# # trainloader_c = DataLoader(ld_train_c, batch_size = 64, shuffle=True)
-# ld_test_c = Lung_Test_Dataset(dataset_dir, covid = True, transform=img_transforms)
-# testloader_c = DataLoader(ld_test_c, batch_size = bs, shuffle=True)
-
-# model_infect, model_covid = train(trainloader, testloader, trainloader_c, testloader_c,  epochs=5, lr=0.001, weight_decay=1e-4)
-
-# model_infect = load("infected_OneModel.pt")
-# model_covid = load("covid_PreliminaryModel.pt")
-
-# ld_valid = Lung_Val_Dataset(dataset_dir,covid=None, transform=img_transforms)
-# validloader = DataLoader(ld_valid,batch_size=bs,shuffle=False)
-# images, target_i, target_c, pred_i, pred_c, acc = test_overall_model(model_infect,model_covid,validloader,nn.CrossEntropyLoss)
-# ld_valid_display = Lung_Val_Dataset(dataset_dir, covid=None)
-# visualise_val_predictions(ld_valid_display, target_i, target_c, pred_i, pred_c, acc)
-
-model_names = [
-    "PreliminaryModel",
-    "LowPass",
-    "HighPass",
-    "OneModel",
-    "ThreeModel",
-]
-
-ld_test = Lung_Test_Dataset(dataset_dir, covid = None)
-testloader = DataLoader(ld_test, batch_size = 64, shuffle=True)
-
-for inf in model_names:
-    for cov in model_names:
-        print()
-        print("-----------------------------------")
-        print(f"Testing for {inf} infectmodel and {cov} covid model\n-----------------------------------")
-
-        model_infect = load(f"model/infected_{inf}.pt")
-        model_covid = load(f"model/covid_{cov}.pt")
-        test_overall_model(model_infect, model_covid, testloader, nn.CrossEntropyLoss)
